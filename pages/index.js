@@ -15,42 +15,26 @@ export default function Home() {
     "General", "Common", "Uncommon", "Rare", "Epic", "Leg", "Mystic", "Iconic"
   ];
 
-  // Fetch teams when sport changes
+  // Load teams when sport changes
   useEffect(() => {
     if (!sport) return;
-
     setLoading(true);
     setError("");
-
     fetch(`/api/teams?sport=${sport}`)
       .then(res => res.json())
       .then(data => {
-        if (!data.teams || Object.keys(data.teams).length === 0) {
-          setError("No teams found for this sport.");
-          setTeams({});
-          setTeam("");
-        } else {
-          setTeams(data.teams);
-          const firstTeam = Object.keys(data.teams).sort()[0];
-          setTeam(firstTeam);
-        }
+        setTeams(data.teams || {});
+        setTeam(Object.keys(data.teams || {})[0] || "");
       })
-      .catch(err => {
-        console.error(err);
-        setError("Failed to load teams");
-        setTeams({});
-        setTeam("");
-      })
+      .catch(err => setError("Failed to load teams"))
       .finally(() => setLoading(false));
   }, [sport]);
 
-  // Fetch schedule when team, season, or rarity changes
+  // Load schedule when team, season, or rarity changes
   useEffect(() => {
     if (!team) return;
-
     setLoading(true);
     setError("");
-
     fetch(`/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`)
       .then(res => res.json())
       .then(data => {
@@ -63,12 +47,7 @@ export default function Home() {
           setTotalRax(data.totalRax || 0);
         }
       })
-      .catch(err => {
-        console.error(err);
-        setError("Failed to load schedule");
-        setSchedule([]);
-        setTotalRax(0);
-      })
+      .catch(err => setError("Failed to load schedule"))
       .finally(() => setLoading(false));
   }, [sport, team, season, rarity]);
 
@@ -84,15 +63,11 @@ export default function Home() {
           <option value="NBA">NBA</option>
         </select>
       </label>
-
       <br /><br />
 
       <label>
         Select Team:
-        <select
-          value={team}
-          onChange={e => setTeam(e.target.value)}
-        >
+        <select value={team} onChange={e => setTeam(e.target.value)}>
           {Object.keys(teams).map(abbr => (
             <option key={abbr} value={abbr}>
               {teams[abbr]}
@@ -100,7 +75,6 @@ export default function Home() {
           ))}
         </select>
       </label>
-
       <br /><br />
 
       <label>
@@ -113,7 +87,6 @@ export default function Home() {
           onChange={e => setSeason(parseInt(e.target.value))}
         />
       </label>
-
       <br /><br />
 
       <label>
@@ -124,7 +97,6 @@ export default function Home() {
           ))}
         </select>
       </label>
-
       <br /><br />
 
       {loading && <p>Loading...</p>}

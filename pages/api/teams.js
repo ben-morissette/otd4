@@ -8,30 +8,15 @@ const SPORT_APIS = {
 
 export default async function handler(req, res) {
   const { sport } = req.query;
-
-  if (!sport || !SPORT_APIS[sport]) {
-    return res.status(400).json({ error: "Invalid or missing sport parameter" });
-  }
-
-  const url = `http://site.api.espn.com/apis/site/v2/sports/${SPORT_APIS[sport]}/teams`;
+  if (!sport || !SPORT_APIS[sport]) return res.status(400).json({ error: "Invalid sport" });
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(`http://site.api.espn.com/apis/site/v2/sports/${SPORT_APIS[sport]}/teams`);
     const data = await response.json();
-
     const teams = {};
-    const teamsData = data?.sports?.[0]?.leagues?.[0]?.teams || [];
-
-    teamsData.forEach(t => {
-      const abbr = t.team.abbreviation;
-      const name = t.team.displayName;
-      teams[abbr] = name;
+    (data.sports?.[0]?.leagues?.[0]?.teams || []).forEach(t => {
+      teams[t.team.abbreviation] = t.team.displayName;
     });
-
-    if (Object.keys(teams).length === 0) {
-      return res.status(404).json({ error: "No teams found" });
-    }
-
     res.status(200).json({ teams });
   } catch (err) {
     console.error(err);
