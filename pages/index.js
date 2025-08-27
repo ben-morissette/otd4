@@ -1,107 +1,88 @@
-import { useState, useEffect } from "react";
-import { getTeams, getSchedule } from "../utils/raxUtil";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import Dropdown from "../components/Dropdown";
+import ScheduleTable from "../components/ScheduleTable";
+import { calculateRax } from "../utils/raxUtil";
 
 export default function Home() {
-  const [sport, setSport] = useState("NHL");
+  const sports = ["NHL", "NFL", "NBA", "CFB", "CBB"];
+  const rarities = ["General", "Common", "Uncommon", "Rare", "Epic", "Leg", "Mystic", "Iconic"];
+
+  const [selectedSport, setSelectedSport] = useState("");
   const [teams, setTeams] = useState([]);
-  const [team, setTeam] = useState("");
+  const [selectedTeam, setSelectedTeam] = useState("");
   const [season, setSeason] = useState(new Date().getFullYear());
-  const [rarity, setRarity] = useState("General");
+  const [selectedRarity, setSelectedRarity] = useState("General");
   const [schedule, setSchedule] = useState([]);
-  const [totalRax, setTotalRax] = useState(0);
 
   useEffect(() => {
-    if (sport) {
-      getTeams(sport).then(setTeams).catch(console.error);
-    }
-  }, [sport]);
+    if (!selectedSport) return;
 
-  const handleFetchSchedule = async () => {
-    if (!team) return;
-    const { schedule: sched, totalRax: rax } = await getSchedule(
-      sport,
-      team,
-      season,
-      rarity
-    );
-    setSchedule(sched);
-    setTotalRax(rax);
-  };
+    const fetchTeams = async () => {
+      let sportPath = selectedSport.toLowerCase();
+      if (selectedSport === "CFB" || selectedSport === "CBB") sportPath = "mens-college-basketball";
+
+      const url = `http://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams`;
+      const res = await axios.get(url);
+      const allTeams = res.data.sports[0].leagues[0].teams.map(t => ({
+        displayName: t.team.displayName,
+        abbreviation: t.team.abbreviation
+      }));
+      setTeams(allTeams);
+    };
+    fetchTeams();
+  }, [selectedSport]);
+
+  useEffect(() => {
+    if (!selectedTeam) return;
+
+    const fetchSchedule = async () => {
+      const url = `http://site.api.espn.com/apis/site/v2/sports/${selectedSport.toLowerCase()}/${selectedTeam}/schedule?season=${season}&seasontype=2`;
+      try {
+        const res = await axios.get(url);
+        const games = res.data.events.map(ev => {
+          const homeTeam = ev.competitions[0].competitors.find(c => c.homeAway === "home");
+          const awayTeam = ev.competitions[0].competitors.find(c => c.homeAway === "away");
+
+          return {
+            date: ev.date,
+            opponent: homeTeam.team.displayName === selectedTeam ? awayTeam.team.displayName : homeTeam.team.displayName,
+            location: homeTeam.team.displayName === selectedTeam ? "Home" : "Away",
+            homeScore: homeTeam.score,
+            awayScore: awayTeam.score,
+            type: ev.season.type === 2 ? "Playoffs" : "Regular",
+            homeTeam: homeTeam.team.displayName,
+            awayTeam: awayTeam.team.displayName,
+            rax: calculateRax({
+              homeScore: { value: homeTeam.score },
+              awayScore: { value: awayTeam.score },
+              homeTeam: homeTeam.team.displayName,
+              awayTeam: awayTeam.team.displayName,
+              type: ev.season.type === 2 ? "Playoffs" : "Regular"
+            }, selectedTeam, selectedRarity, selectedSport)
+          };
+        });
+        setSchedule(games);
+      } catch (err) {
+        console.error(err);
+        setSchedule([]);
+      }
+    };
+
+    fetchSchedule();
+  }, [selectedTeam, season, selectedSport, selectedRarity]);
 
   return (
-    <div style={{ padding: "2rem", background: "#1e1e1e", color: "#fff" }}>
+    <div style={{ padding: "2rem" }}>
       <h1>Team Schedule Viewer</h1>
+      <Dropdown label="Select Sport" options={sports} value={selectedSport} onChange={setSelectedSport} />
+      <Dropdown label="Select Team" options={teams} value={selectedTeam} onChange={setSelectedTeam} />
+      <Dropdown label="Season" options={[2024, 2025]} value={season} onChange={setSeason} />
+      <Dropdown label="Rarity" options={rarities} value={selectedRarity} onChange={setSelectedRarity} />
 
-      <label>Sport:</label>
-      <select value={sport} onChange={(e) => setSport(e.target.value)}>
-        <option value="NHL">NHL</option>
-        <option value="NFL">NFL</option>
-        <option value="NBA">NBA</option>
-      </select>
+      <h2>Selected: {selectedSport} - {selectedTeam} - {season} - {selectedRarity}</h2>
 
-      <br />
-      <label>Team:</label>
-      <select value={team} onChange={(e) => setTeam(e.target.value)}>
-        <option value="">Select Team</option>
-        {teams.map((t) => (
-          <option key={t.abbr} value={t.abbr}>
-            {t.displayName}
-          </option>
-        ))}
-      </select>
-
-      <br />
-      <label>Season:</label>
-      <input
-        type="number"
-        value={season}
-        onChange={(e) => setSeason(parseInt(e.target.value))}
-      />
-
-      <br />
-      <label>Rarity:</label>
-      <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
-        <option>General</option>
-        <option>Common</option>
-        <option>Uncommon</option>
-        <option>Rare</option>
-        <option>Epic</option>
-        <option>Leg</option>
-        <option>Mystic</option>
-        <option>Iconic</option>
-      </select>
-
-      <br />
-      <button onClick={handleFetchSchedule}>Fetch Schedule</button>
-
-      <h2>Total Rax Earned: {totalRax}</h2>
-
-      {schedule.length > 0 && (
-        <table border="1" style={{ width: "100%", color: "#fff" }}>
-          <thead>
-            <tr>
-              <th>Game</th>
-              <th>W/L</th>
-              <th>Date</th>
-              <th>Matchup</th>
-              <th>Score</th>
-              <th>Rax Earned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedule.map((g, i) => (
-              <tr key={i}>
-                <td>{g.game}</td>
-                <td>{g.WL}</td>
-                <td>{g.date}</td>
-                <td>{g.name}</td>
-                <td>{g.Score}</td>
-                <td>{g.rax_earned}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <ScheduleTable schedule={schedule} />
     </div>
   );
 }

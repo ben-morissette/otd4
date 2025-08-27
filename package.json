@@ -1,5 +1,5 @@
 {
-  "name": "team-rax-vercel",
+  "name": "team-schedule-viewer",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,10 +8,14 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "^14.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "axios": "^1.6.0",
-    "dayjs": "^1.12.9"
+    "axios": "^1.6.1",
+    "dayjs": "1.12.8",
+    "next": "13.5.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "styled-components": "^6.0.10"
+  },
+  "overrides": {
+    "dayjs": "1.12.8"
   }
 }

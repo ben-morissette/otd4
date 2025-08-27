@@ -1,47 +1,25 @@
-import { useMemo } from "react";
-import { useTable } from "react-table";
-
-export default function ScheduleTable({ data }) {
-  const columns = useMemo(
-    () =>
-      data[0]
-        ? Object.keys(data[0]).map((key) => ({
-            Header: key,
-            accessor: key,
-          }))
-        : [],
-    [data]
-  );
-
-  const tableInstance = useTable({ columns, data });
-  const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } = tableInstance;
+export default function ScheduleTable({ schedule }) {
+  if (!schedule || schedule.length === 0) return <div>No schedule found.</div>;
 
   return (
-    <table {...getTableProps()} style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+    <table border="1" cellPadding="5" style={{ borderCollapse: "collapse" }}>
       <thead>
-        {headerGroups.map((headerGroup) => (
-          <tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id}>
-            {headerGroup.headers.map((column) => (
-              <th {...column.getHeaderProps()} key={column.id} style={{ border: "1px solid #444", padding: "0.5rem" }}>
-                {column.render("Header")}
-              </th>
-            ))}
+        <tr>
+          <th>Date</th>
+          <th>Opponent</th>
+          <th>Location</th>
+          <th>Rax</th>
+        </tr>
+      </thead>
+      <tbody>
+        {schedule.map((g, i) => (
+          <tr key={i}>
+            <td>{g.date}</td>
+            <td>{g.opponent}</td>
+            <td>{g.location}</td>
+            <td>{g.rax}</td>
           </tr>
         ))}
-      </thead>
-      <tbody {...getTableBodyProps()}>
-        {rows.map((row) => {
-          prepareRow(row);
-          return (
-            <tr {...row.getRowProps()} key={row.id}>
-              {row.cells.map((cell) => (
-                <td {...cell.getCellProps()} key={cell.column.id} style={{ border: "1px solid #444", padding: "0.5rem" }}>
-                  {cell.render("Cell")}
-                </td>
-              ))}
-            </tr>
-          );
-        })}
       </tbody>
     </table>
   );
