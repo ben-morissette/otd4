@@ -1,5 +1,5 @@
 {
-  "name": "team-rax-vercel",
+  "name": "team-schedule-viewer",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -8,9 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "13.5.5",
+    "axios": "^1.6.0",
+    "next": "13.5.2",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "axios": "^1.7.5"
+    "react-dom": "18.2.0"
   }
 }
