@@ -1,102 +1,86 @@
-import { useEffect, useState } from "react";
-import { getTeams, getSchedule, calculateRaxForSchedule } from "../lib/api";
-
-const SPORTS = [
-  { label: "MLB", value: "baseball/mlb" },
-  { label: "NHL", value: "hockey/nhl" },
-  { label: "NFL", value: "football/nfl" },
-  { label: "CFB", value: "football/college-football" },
-  { label: "NBA", value: "basketball/nba" },
-  { label: "CBB", value: "basketball/college-basketball" },
-  { label: "WNBA", value: "basketball/wnba" }
-];
+import { useState, useEffect } from 'react';
+import { getTeams, getSchedule, calculateRax } from '../lib/api';
 
 export default function Home() {
-  const [sport, setSport] = useState(SPORTS[0].value);
+  const [sport, setSport] = useState('NHL');
   const [teams, setTeams] = useState({});
-  const [team, setTeam] = useState("");
-  const [year, setYear] = useState(2024);
-  const [rarity, setRarity] = useState("General");
+  const [team, setTeam] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear());
   const [schedule, setSchedule] = useState([]);
-  const [totalRax, setTotalRax] = useState(0);
 
   useEffect(() => {
-    getTeams(sport).then(t => setTeams(t));
+    async function fetchTeams() {
+      const data = await getTeams(sport);
+      setTeams(data);
+      setTeam(Object.keys(data)[0] || '');
+    }
+    fetchTeams();
   }, [sport]);
 
-  const handleFetchSchedule = async () => {
-    if (!team) return;
-    const sched = await getSchedule(sport, team, year);
-    const { rows, totalRax } = calculateRaxForSchedule(sport, teams[team], sched, rarity);
-    setSchedule(rows);
-    setTotalRax(totalRax);
-  };
+  useEffect(() => {
+    async function fetchSchedule() {
+      if (!team) return;
+      const data = await getSchedule(sport, team, year);
+      setSchedule(data.map(game => ({
+        ...game,
+        rax: calculateRax(sport, teams[team], game)
+      })));
+    }
+    fetchSchedule();
+  }, [team, year, sport, teams]);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+    <div style={{ maxWidth: '800px', margin: '2rem auto', fontFamily: 'sans-serif' }}>
       <h1>Team Rax Viewer</h1>
 
-      <div>
-        <label>Sport: </label>
-        <select value={sport} onChange={e => setSport(e.target.value)}>
-          {SPORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-      </div>
+      <label>Sport:</label>
+      <select value={sport} onChange={(e) => setSport(e.target.value)}>
+        <option value="NHL">NHL</option>
+        <option value="NFL">NFL</option>
+        <option value="NBA">NBA</option>
+      </select>
 
-      <div>
-        <label>Team: </label>
-        <select value={team} onChange={e => setTeam(e.target.value)}>
-          <option value="">Select a Team</option>
-          {Object.keys(teams).map(abbr => <option key={abbr} value={abbr}>{teams[abbr]}</option>)}
-        </select>
-      </div>
+      <br /><br />
 
-      <div>
-        <label>Year: </label>
-        <input type="number" value={year} min="2000" max="2100" onChange={e => setYear(parseInt(e.target.value))} />
-      </div>
+      <label>Team:</label>
+      <select value={team} onChange={(e) => setTeam(e.target.value)}>
+        {Object.entries(teams).map(([abbr, name]) => (
+          <option key={abbr} value={abbr}>{name}</option>
+        ))}
+      </select>
 
-      <div>
-        <label>Rarity: </label>
-        <select value={rarity} onChange={e => setRarity(e.target.value)}>
-          {Object.keys(RARITY_MULTIPLIERS).map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
+      <br /><br />
 
-      <button onClick={handleFetchSchedule} style={{ margin: "1rem 0" }}>Fetch Schedule</button>
+      <label>Year:</label>
+      <select value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
+        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
 
-      <h2>Total Rax: {totalRax}</h2>
+      <br /><br />
 
-      {schedule.length > 0 && (
-        <table border="1" cellPadding="5" style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Matchup</th>
-              <th>Home</th>
-              <th>Away</th>
-              <th>Winner</th>
-              <th>Loser</th>
-              <th>Margin</th>
-              <th>Rax</th>
+      <h2>Schedule & Rax Earned</h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Game</th>
+            <th>Score</th>
+            <th>Rax Earned</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((g, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #ccc' }}>
+              <td>{new Date(g.date).toLocaleDateString()}</td>
+              <td>{g.awayTeam} @ {g.homeTeam}</td>
+              <td>{g.awayScore} - {g.homeScore}</td>
+              <td>{g.rax}</td>
             </tr>
-          </thead>
-          <tbody>
-            {schedule.map((row, idx) => (
-              <tr key={idx}>
-                <td>{new Date(row.date).toLocaleDateString()}</td>
-                <td>{row.matchup}</td>
-                <td>{row.homeScore}</td>
-                <td>{row.awayScore}</td>
-                <td>{row.winner}</td>
-                <td>{row.loser}</td>
-                <td>{row.margin}</td>
-                <td>{row.rax}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
