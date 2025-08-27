@@ -4,8 +4,8 @@ export default function Home() {
   const [sport, setSport] = useState("");
   const [teams, setTeams] = useState({});
   const [team, setTeam] = useState("");
-  const [season, setSeason] = useState("");
-  const [rarity, setRarity] = useState("");
+  const [season, setSeason] = useState(2024);
+  const [rarity, setRarity] = useState("General");
   const [scheduleData, setScheduleData] = useState([]);
   const [totalRax, setTotalRax] = useState(0);
 
@@ -20,7 +20,6 @@ export default function Home() {
     "Iconic",
   ];
 
-  // Fetch teams when sport changes
   useEffect(() => {
     if (!sport) return;
 
@@ -28,14 +27,12 @@ export default function Home() {
       .then((res) => res.json())
       .then((data) => {
         setTeams(data || {});
-        setTeam(""); // reset team selection
       })
       .catch(console.error);
   }, [sport]);
 
-  // Fetch schedule when all selections are made
   useEffect(() => {
-    if (!sport || !team || !season || !rarity) return;
+    if (!sport || !team) return;
 
     fetch(
       `/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`
@@ -47,8 +44,6 @@ export default function Home() {
       })
       .catch(console.error);
   }, [sport, team, season, rarity]);
-
-  const formatSeason = (yr) => `${yr}–${parseInt(yr) + 1}`;
 
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
@@ -83,7 +78,7 @@ export default function Home() {
       {/* Season */}
       {sport && (
         <div style={{ marginTop: "1rem" }}>
-          <label>Season Start Year: </label>
+          <label>Season: </label>
           <input
             type="number"
             value={season}
@@ -91,7 +86,6 @@ export default function Home() {
             min={2000}
             max={2100}
           />
-          {season && <span> ({formatSeason(season)})</span>}
         </div>
       )}
 
@@ -100,7 +94,6 @@ export default function Home() {
         <div style={{ marginTop: "1rem" }}>
           <label>Rarity: </label>
           <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
-            <option value="">Select Rarity</option>
             {RARITY_OPTIONS.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -133,13 +126,11 @@ export default function Home() {
             <tbody>
               {scheduleData.map((game, i) => (
                 <tr key={i}>
-                  <td>{new Date(game.date).toLocaleString()}</td>
-                  <td>
-                    {game.away} at {game.home}
-                  </td>
+                  <td>{game.date}</td>
+                  <td>{game.name}</td>
                   <td>{game.Score}</td>
                   <td>{game.winner}</td>
-                  <td>{game.rax.toFixed(2)}</td>
+                  <td>{game.rax_earned.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

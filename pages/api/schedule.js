@@ -47,28 +47,22 @@ export default async function handler(req, res) {
 
       const winner =
         homeScore > awayScore ? home : awayScore > homeScore ? away : "Tie";
-      const margin = Math.abs(homeScore - awayScore);
 
-      let baseRax = 0;
-      if (winner === team) {
-        baseRax = 10 + margin * 2;
-      } else if (winner === "Tie") {
-        baseRax = 5;
-      }
-
-      const rax = baseRax * rarityMultiplier;
+      const baseRax = winner === team ? 10 + Math.abs(homeScore - awayScore) : 0;
+      const rax_earned = baseRax * rarityMultiplier;
 
       return {
         date: event.date,
+        name: event.name,
         home,
         away,
         Score: `${awayScore} - ${homeScore}`,
         winner,
-        rax,
+        rax_earned,
       };
     });
 
-    const totalRax = schedule.reduce((sum, g) => sum + g.rax, 0);
+    const totalRax = schedule.reduce((sum, g) => sum + g.rax_earned, 0);
 
     res.status(200).json({ schedule, totalRax });
   } catch (err) {
