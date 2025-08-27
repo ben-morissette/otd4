@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const [sport, setSport] = useState("NHL");
@@ -12,31 +12,28 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const RARITY_OPTIONS = [
-    "General",
-    "Common",
-    "Uncommon",
-    "Rare",
-    "Epic",
-    "Leg",
-    "Mystic",
-    "Iconic"
+    "General", "Common", "Uncommon", "Rare", "Epic", "Leg", "Mystic", "Iconic"
   ];
 
-  // Fetch teams whenever sport changes
+  // Fetch teams when sport changes
   useEffect(() => {
     if (!sport) return;
+
     setLoading(true);
     setError("");
+    setTeams({});
+    setTeam("");
+
     fetch(`/api/teams?sport=${sport}`)
       .then(res => res.json())
       .then(data => {
-        if (data.error) {
-          setError(data.error);
+        if (!data.teams || Object.keys(data.teams).length === 0) {
+          setError("No teams found for this sport.");
           setTeams({});
           setTeam("");
         } else {
-          setTeams(data.teams || {});
-          const firstTeam = Object.keys(data.teams || {})[0] || "";
+          setTeams(data.teams);
+          const firstTeam = Object.keys(data.teams).sort()[0];
           setTeam(firstTeam);
         }
       })
@@ -49,11 +46,15 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, [sport]);
 
-  // Fetch schedule whenever team, season, or rarity changes
+  // Fetch schedule when team, season, or rarity changes
   useEffect(() => {
     if (!team) return;
+
     setLoading(true);
     setError("");
+    setSchedule([]);
+    setTotalRax(0);
+
     fetch(`/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`)
       .then(res => res.json())
       .then(data => {
@@ -62,8 +63,8 @@ export default function Home() {
           setSchedule([]);
           setTotalRax(0);
         } else {
-          setSchedule(data.schedule);
-          setTotalRax(data.totalRax);
+          setSchedule(data.schedule || []);
+          setTotalRax(data.totalRax || 0);
         }
       })
       .catch(err => {
@@ -76,78 +77,92 @@ export default function Home() {
   }, [sport, team, season, rarity]);
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1>Team Schedule Viewer</h1>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Sport: </label>
+      <label>
+        Select Sport:
         <select value={sport} onChange={e => setSport(e.target.value)}>
           <option value="NHL">NHL</option>
           <option value="NFL">NFL</option>
           <option value="NBA">NBA</option>
         </select>
-      </div>
+      </label>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Team: </label>
-        <select value={team} onChange={e => setTeam(e.target.value)}>
+      <br /><br />
+
+      <label>
+        Select Team:
+        <select
+          value={team}
+          onChange={e => setTeam(e.target.value)}
+          disabled={Object.keys(teams).length === 0}
+        >
           {Object.keys(teams).map(abbr => (
-            <option key={abbr} value={abbr}>{teams[abbr]}</option>
+            <option key={abbr} value={abbr}>
+              {teams[abbr]}
+            </option>
           ))}
         </select>
-      </div>
+      </label>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Season: </label>
+      <br /><br />
+
+      <label>
+        Season:
         <input
           type="number"
           value={season}
           min={2000}
           max={2100}
-          onChange={e => setSeason(Number(e.target.value))}
+          onChange={e => setSeason(parseInt(e.target.value))}
         />
-      </div>
+      </label>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Rarity: </label>
+      <br /><br />
+
+      <label>
+        Rarity:
         <select value={rarity} onChange={e => setRarity(e.target.value)}>
           {RARITY_OPTIONS.map(r => (
             <option key={r} value={r}>{r}</option>
           ))}
         </select>
-      </div>
+      </label>
+
+      <br /><br />
 
       {loading && <p>Loading...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {!loading && !error && schedule.length > 0 && (
-        <>
+        <div>
           <h2>Total Rax Earned: {totalRax.toFixed(2)}</h2>
           <table border="1" cellPadding="5" style={{ borderCollapse: "collapse" }}>
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Game</th>
-                <th>Type</th>
+                <th>Name</th>
                 <th>Score</th>
+                <th>Type</th>
                 <th>W/L</th>
                 <th>Rax Earned</th>
               </tr>
             </thead>
             <tbody>
-              {schedule.map((g, idx) => (
+              {schedule.map((game, idx) => (
                 <tr key={idx}>
-                  <td>{g.date}</td>
-                  <td>{g.name}</td>
-                  <td>{g.type}</td>
-                  <td>{g.Score}</td>
-                  <td>{g["W/L"]}</td>
-                  <td>{g.rax_earned}</td>
+                  <td>{game.date}</td>
+                  <td>{game.name}</td>
+                  <td>{game.Score}</td>
+                  <td>{game.type}</td>
+                  <td>{game["W/L"]}</td>
+                  <td>{game.rax_earned}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </>
+        </div>
       )}
     </div>
   );
