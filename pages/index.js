@@ -1,53 +1,133 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
+import styles from "../styles/globals.css";
 
-const SPORTS = ["NHL", "NFL", "NBA"];
+const RARITY_MULTIPLIERS = {
+  General: 1,
+  Common: 1.2,
+  Uncommon: 1.4,
+  Rare: 1.6,
+  Epic: 2,
+  Leg: 2.5,
+  Mystic: 4,
+  Iconic: 6
+};
 
 export default function Home() {
   const [sport, setSport] = useState("NHL");
   const [teams, setTeams] = useState({});
   const [team, setTeam] = useState("");
+  const [season, setSeason] = useState(2024);
+  const [rarity, setRarity] = useState("General");
+  const [schedule, setSchedule] = useState(null);
+  const [totalRax, setTotalRax] = useState(0);
 
   useEffect(() => {
-    const fetchTeams = async () => {
+    async function fetchTeams() {
       try {
         const res = await axios.get(`/api/teams?sport=${sport}`);
         setTeams(res.data);
-
-        const firstTeam = Object.keys(res.data)[0];
-        if (firstTeam) setTeam(firstTeam);
-      } catch (err) {
-        console.error("Failed to fetch teams", err);
-        setTeams({});
+        setTeam(Object.keys(res.data)[0] || "");
+      } catch (e) {
+        console.error(e);
       }
-    };
+    }
     fetchTeams();
   }, [sport]);
 
+  const getSchedule = async () => {
+    // placeholder: call your schedule calculation API
+    alert(
+      `Fetch schedule for ${team} (${teams[team]}) ${season}, rarity: ${rarity}`
+    );
+  };
+
   return (
-    <div style={{ backgroundColor: "#1e1e1e", color: "#fff", minHeight: "100vh", padding: "2rem" }}>
+    <div className="container">
       <h1>Team Schedule Viewer</h1>
-
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Sport: </label>
+      <div className="input-group">
+        <label>Sport:</label>
         <select value={sport} onChange={(e) => setSport(e.target.value)}>
-          {SPORTS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+          <option value="NHL">NHL</option>
+          <option value="NFL">NFL</option>
+          <option value="NBA">NBA</option>
         </select>
       </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Team: </label>
+      <div className="input-group">
+        <label>Team:</label>
         <select value={team} onChange={(e) => setTeam(e.target.value)}>
-          {Object.entries(teams).map(([abbr, name]) => (
-            <option key={abbr} value={abbr}>{name}</option>
+          {Object.keys(teams).map((abbr) => (
+            <option key={abbr} value={abbr}>
+              {teams[abbr]}
+            </option>
           ))}
         </select>
       </div>
 
-      <p>Selected Sport: {sport}</p>
-      <p>Selected Team: {teams[team]}</p>
+      <div className="input-group">
+        <label>Season:</label>
+        <input
+          type="number"
+          value={season}
+          min={2000}
+          max={2100}
+          onChange={(e) => setSeason(Number(e.target.value))}
+        />
+      </div>
+
+      <div className="input-group">
+        <label>Rarity:</label>
+        <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
+          {Object.keys(RARITY_MULTIPLIERS).map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button onClick={getSchedule}>Get Schedule & Rax</button>
+
+      {schedule && (
+        <div>
+          <h2>Total Rax Earned: {totalRax}</h2>
+          {/* render schedule table here */}
+        </div>
+      )}
+
+      <style jsx>{`
+        .container {
+          background-color: #121212;
+          color: #fff;
+          min-height: 100vh;
+          padding: 2rem;
+          font-family: Arial, sans-serif;
+        }
+        .input-group {
+          margin-bottom: 1rem;
+        }
+        label {
+          margin-right: 0.5rem;
+        }
+        select,
+        input {
+          padding: 0.3rem;
+          border-radius: 4px;
+          border: none;
+        }
+        button {
+          padding: 0.5rem 1rem;
+          border-radius: 5px;
+          border: none;
+          background-color: #6200ee;
+          color: white;
+          cursor: pointer;
+        }
+        button:hover {
+          background-color: #3700b3;
+        }
+      `}</style>
     </div>
   );
 }
