@@ -86,6 +86,7 @@ export default function Home() {
           max={2100}
           onChange={e => setSeason(parseInt(e.target.value))}
         />
+        {" "}({season} - {season + 1})
       </label>
       <br /><br />
 
