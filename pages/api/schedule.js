@@ -1,60 +1,74 @@
 import fetch from "node-fetch";
 
 const RARITY_MULTIPLIERS = {
-  General: 1, Common: 1.2, Uncommon: 1.4, Rare: 1.6,
-  Epic: 2, Leg: 2.5, Mystic: 4, Iconic: 6
-};
-
-const SPORT_APIS = {
-  NHL: "hockey/nhl",
-  NFL: "football/nfl",
-  NBA: "basketball/nba",
+  General: 1,
+  Common: 1.2,
+  Uncommon: 1.4,
+  Rare: 1.6,
+  Epic: 2,
+  Leg: 2.5,
+  Mystic: 4,
+  Iconic: 6,
 };
 
 export default async function handler(req, res) {
   const { sport, team, season, rarity } = req.query;
-  if (!sport || !team || !season) return res.status(400).json({ error: "Missing parameters" });
+  if (!sport || !team || !season || !rarity) {
+    return res.status(400).json({ error: "Missing parameters" });
+  }
+
+  const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
+
+  const urls = {
+    NHL: `http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${team}/schedule?season=${season}&seasontype=2`,
+    NFL: `http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team}/schedule?season=${season}&seasontype=2`,
+    NBA: `http://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team}/schedule?season=${season}&seasontype=2`,
+  };
 
   try {
-    const multiplier = RARITY_MULTIPLIERS[rarity] || 1;
-    const url = `http://site.api.espn.com/apis/site/v2/sports/${SPORT_APIS[sport]}/teams/${team}/schedule?season=${season}&seasontype=2`;
-    const playoffUrl = `http://site.api.espn.com/apis/site/v2/sports/${SPORT_APIS[sport]}/teams/${team}/schedule?season=${season}&seasontype=3`;
+    const response = await fetch(urls[sport]);
+    const data = await response.json();
 
-    const response = await fetch(url);
-    const scheduleData = await response.json();
+    const schedule = data.events.map((event) => {
+      let home = "";
+      let away = "";
+      let homeScore = 0;
+      let awayScore = 0;
 
-    const playoffResponse = await fetch(playoffUrl);
-    const playoffData = await playoffResponse.json();
+      event.competitions[0].competitors.forEach((c) => {
+        if (c.homeAway === "home") {
+          home = c.team.displayName;
+          homeScore = parseInt(c.score || 0);
+        } else {
+          away = c.team.displayName;
+          awayScore = parseInt(c.score || 0);
+        }
+      });
 
-    const teamName = scheduleData.team?.displayName || "";
-
-    const events = [...(scheduleData.events || []), ...(playoffData.events || [])];
-    const schedule = events.map(e => {
-      const comp = e.competitions?.[0]?.competitors || [];
-      const home = comp.find(c => c.homeAway === "home");
-      const away = comp.find(c => c.homeAway === "away");
-
-      const homeScore = home?.score?.value || 0;
-      const awayScore = away?.score?.value || 0;
-
-      const winner = homeScore > awayScore ? home.team.displayName : awayScore > homeScore ? away.team.displayName : "Tie";
-      const loser = winner === home.team.displayName ? away.team.displayName : winner === away.team.displayName ? home.team.displayName : "Tie";
+      const winner =
+        homeScore > awayScore ? home : awayScore > homeScore ? away : "Tie";
       const margin = Math.abs(homeScore - awayScore);
 
-      const baseRax = winner === teamName ? 12 * margin : 0;
-      const raxEarned = baseRax * multiplier;
+      let baseRax = 0;
+      if (winner === team) {
+        baseRax = 10 + margin * 2;
+      } else if (winner === "Tie") {
+        baseRax = 5;
+      }
+
+      const rax = baseRax * rarityMultiplier;
 
       return {
-        date: e.date,
-        name: e.name,
+        date: event.date,
+        home,
+        away,
         Score: `${awayScore} - ${homeScore}`,
-        type: e.seasonType === 3 ? "Playoffs" : "Regular Season",
-        "W/L": winner === teamName ? "W" : loser === teamName ? "L" : "",
-        rax_earned: raxEarned
+        winner,
+        rax,
       };
     });
 
-    const totalRax = schedule.reduce((sum, g) => sum + (g.rax_earned || 0), 0);
+    const totalRax = schedule.reduce((sum, g) => sum + g.rax, 0);
 
     res.status(200).json({ schedule, totalRax });
   } catch (err) {
@@ -62,4 +76,3 @@ export default async function handler(req, res) {
     res.status(500).json({ error: "Failed to fetch schedule" });
   }
 }
-"Works"

@@ -20,39 +20,41 @@ export default function Home() {
     "Iconic",
   ];
 
-  // Fetch teams whenever sport changes
+  // Fetch teams when sport changes
   useEffect(() => {
     if (!sport) return;
-    setTeams({});
-    setTeam("");
+
     fetch(`/api/teams?sport=${sport}`)
       .then((res) => res.json())
-      .then((data) => setTeams(data))
+      .then((data) => {
+        setTeams(data || {});
+        setTeam(""); // reset team selection
+      })
       .catch(console.error);
   }, [sport]);
 
-  // Fetch schedule whenever team, season, rarity changes
+  // Fetch schedule when all selections are made
   useEffect(() => {
     if (!sport || !team || !season || !rarity) return;
+
     fetch(
       `/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`
     )
       .then((res) => res.json())
       .then((data) => {
-        setScheduleData(data.schedule);
-        setTotalRax(data.totalRax);
+        setScheduleData(data.schedule || []);
+        setTotalRax(data.totalRax || 0);
       })
       .catch(console.error);
   }, [sport, team, season, rarity]);
 
-  // Format season as two years, e.g., 2024 → 2024–2025
   const formatSeason = (yr) => `${yr}–${parseInt(yr) + 1}`;
 
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>Team Schedule Viewer</h1>
 
-      {/* Sport select */}
+      {/* Sport selection */}
       <div>
         <label>Sport: </label>
         <select value={sport} onChange={(e) => setSport(e.target.value)}>
@@ -63,7 +65,7 @@ export default function Home() {
         </select>
       </div>
 
-      {/* Team select */}
+      {/* Team selection */}
       {sport && (
         <div style={{ marginTop: "1rem" }}>
           <label>Team: </label>
@@ -78,7 +80,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Season input */}
+      {/* Season */}
       {sport && (
         <div style={{ marginTop: "1rem" }}>
           <label>Season Start Year: </label>
@@ -93,7 +95,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Rarity select */}
+      {/* Rarity */}
       {sport && (
         <div style={{ marginTop: "1rem" }}>
           <label>Rarity: </label>
