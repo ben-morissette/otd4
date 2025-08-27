@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 
+// Rax multipliers for rarity
 const RARITY_MULTIPLIERS = {
   General: 1,
   Common: 1.2,
@@ -9,38 +10,36 @@ const RARITY_MULTIPLIERS = {
   Epic: 2,
   Leg: 2.5,
   Mystic: 4,
-  Iconic: 6,
+  Iconic: 6
 };
 
+// ESPN team APIs
 const TEAM_API = {
-  NHL: "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams",
-  NFL: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams",
-  NBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams",
-};
-
-const PLAYOFF_NAMES = {
-  NHL: { 1: "Conference Quarterfinals", 2: "Conference Semifinals", 3: "Conference Finals", 4: "Stanley Cup Final" },
-  NFL: { 1: "Wild Card", 2: "Divisional Round", 3: "Conference Championship", 4: "Super Bowl" },
-  NBA: { 1: "First Round", 2: "Conference Semifinals", 3: "Conference Finals", 4: "NBA Finals" },
+  NHL: "http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams",
+  NFL: "http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams",
+  NBA: "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams"
 };
 
 export default function Home() {
   const [sport, setSport] = useState("NHL");
-  const [teams, setTeams] = useState({});
   const [team, setTeam] = useState("");
-  const [season, setSeason] = useState(2024);
+  const [teams, setTeams] = useState({});
+  const [season, setSeason] = useState(new Date().getFullYear());
   const [rarity, setRarity] = useState("General");
   const [schedule, setSchedule] = useState([]);
   const [totalRax, setTotalRax] = useState(0);
 
+  // Fetch teams dynamically whenever sport changes
   useEffect(() => {
     const fetchTeams = async () => {
       try {
         const res = await axios.get(TEAM_API[sport]);
-        const data = res.data.sports[0].leagues[0].teams;
+        const data = res.data.sports[0].leagues[0].teams || [];
         const teamMap = {};
         data.forEach((t) => {
-          teamMap[t.team.abbreviation] = t.team.displayName;
+          if (t.team && t.team.abbreviation && t.team.displayName) {
+            teamMap[t.team.abbreviation] = t.team.displayName;
+          }
         });
         setTeams(teamMap);
         setTeam(Object.keys(teamMap)[0] || "");
@@ -52,79 +51,62 @@ export default function Home() {
     fetchTeams();
   }, [sport]);
 
+  // Fetch schedule & calculate Rax
   const fetchSchedule = async () => {
     if (!team) return;
     try {
-      const seasonType = 2; // Regular season
-      const playoffType = 3; // Playoffs
+      const url = `http://site.api.espn.com/apis/site/v2/sports/${
+        sport === "NHL" ? "hockey/nhl" : sport === "NFL" ? "football/nfl" : "basketball/nba"
+      }/teams/${team}/schedule?season=${season}&seasontype=2`;
 
-      const url = `https://site.api.espn.com/apis/site/v2/sports/${sport.toLowerCase()}/${sport}/teams/${team}/schedule?season=${season}&seasontype=${seasonType}`;
-      const playoffUrl = `https://site.api.espn.com/apis/site/v2/sports/${sport.toLowerCase()}/${sport}/teams/${team}/schedule?season=${season}&seasontype=${playoffType}`;
-
-      const [res, playoffRes] = await Promise.all([axios.get(url), axios.get(playoffUrl)]);
+      const res = await axios.get(url);
       const events = res.data.events || [];
-      const playoffEvents = playoffRes.data.events || [];
-
-      let sched = [];
+      const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
       let total = 0;
-      let gameNum = 1;
-      let playoffRound = 0;
-      let playoffOpponent = "";
-      const rarityMultiplier = RARITY_MULTIPLIERS[rarity];
 
-      const processEvent = (event, type) => {
-        const competitors = event.competitions[0].competitors;
-        const home = competitors.find((c) => c.homeAway === "home") || {};
-        const away = competitors.find((c) => c.homeAway === "away") || {};
+      const scheduleData = events.map((event, idx) => {
+        const home = event.competitions[0].competitors.find(c => c.homeAway === "home");
+        const away = event.competitions[0].competitors.find(c => c.homeAway === "away");
 
-        const homeScore = home.score || 0;
-        const awayScore = away.score || 0;
-
-        const winner = homeScore > awayScore ? home.team.abbreviation : homeScore < awayScore ? away.team.abbreviation : "Tie";
-        const loser = winner === home.team.abbreviation ? away.team.abbreviation : winner === away.team.abbreviation ? home.team.abbreviation : "Tie";
-        const margin = Math.abs(homeScore - awayScore);
-
+        const homeScore = Number(home.score) || 0;
+        const awayScore = Number(away.score) || 0;
         let baseRax = 0;
-        if (winner === team) {
-          baseRax = type === "Playoffs" ? 20 + 20 * margin : 12 * margin;
-        } else if (winner === "Tie") {
-          baseRax = 0;
-        } else {
-          baseRax = homeScore + 5; // close game bonus for loss
-        }
 
-        const rax = baseRax * rarityMultiplier;
-        total += rax;
-
-        let gameLabel = "";
-        if (type === "Regular") {
-          gameLabel = `Game ${gameNum}`;
-          gameNum++;
-        } else {
-          const opponent = [home.team.abbreviation, away.team.abbreviation].find((abbr) => abbr !== team);
-          if (opponent !== playoffOpponent) {
-            playoffOpponent = opponent;
-            playoffRound++;
+        // Simple example: customize per sport Rax rules
+        if (sport === "NHL") {
+          if ((home.team.abbreviation === team && homeScore > awayScore) ||
+              (away.team.abbreviation === team && awayScore > homeScore)) {
+            baseRax = 12 * Math.abs(homeScore - awayScore);
           }
-          gameLabel = `${PLAYOFF_NAMES[sport][playoffRound] || `Playoffs_${playoffRound}`} Game`;
+        } else if (sport === "NFL") {
+          if ((home.team.abbreviation === team && homeScore > awayScore) ||
+              (away.team.abbreviation === team && awayScore > homeScore)) {
+            baseRax = 100 + 2 * Math.abs(homeScore - awayScore);
+          } else {
+            baseRax = (home.team.abbreviation === team ? homeScore : awayScore) + 5;
+          }
+        } else if (sport === "NBA") {
+          if ((home.team.abbreviation === team && homeScore > awayScore) ||
+              (away.team.abbreviation === team && awayScore > homeScore)) {
+            baseRax = 2.5 * Math.abs(homeScore - awayScore);
+          }
         }
 
-        sched.push({
-          game: gameLabel,
-          date: new Date(event.date).toLocaleString("en-US", { timeZone: "America/New_York" }),
-          opponent: event.name.split(" at ").find((n) => n !== teams[team]) || "",
+        const raxEarned = baseRax * rarityMultiplier;
+        total += raxEarned;
+
+        return {
+          game: `Game ${idx + 1}`,
+          matchup: `${away.team.abbreviation} @ ${home.team.abbreviation}`,
           score: `${awayScore} - ${homeScore}`,
-          W_L: winner === team ? "W" : loser === team ? "L" : "",
+          W_L: ((home.team.abbreviation === team && homeScore > awayScore) || (away.team.abbreviation === team && awayScore > homeScore)) ? "W" : "L",
           baseRax,
-          rax: rax.toFixed(2),
-        });
-      };
+          raxEarned
+        };
+      });
 
-      events.forEach((e) => processEvent(e, "Regular"));
-      playoffEvents.forEach((e) => processEvent(e, "Playoffs"));
-
-      setSchedule(sched);
-      setTotalRax(total.toFixed(2));
+      setSchedule(scheduleData);
+      setTotalRax(total);
     } catch (err) {
       console.error(err);
       setSchedule([]);
@@ -133,77 +115,77 @@ export default function Home() {
   };
 
   return (
-    <div style={{ background: "#121212", color: "#eee", minHeight: "100vh", padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>Team Schedule Viewer</h1>
+    <div className="min-h-screen p-8 bg-gray-900 text-white">
+      <h1 className="text-3xl font-bold mb-6">Team Schedule & Rax Viewer</h1>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Sport: </label>
-        <select value={sport} onChange={(e) => setSport(e.target.value)}>
-          <option>NHL</option>
-          <option>NFL</option>
-          <option>NBA</option>
+      <div className="flex gap-4 mb-4">
+        <select
+          value={sport}
+          onChange={(e) => setSport(e.target.value)}
+          className="p-2 rounded bg-gray-700"
+        >
+          <option value="NHL">NHL</option>
+          <option value="NFL">NFL</option>
+          <option value="NBA">NBA</option>
         </select>
-      </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Team: </label>
-        <select value={team} onChange={(e) => setTeam(e.target.value)}>
-          {Object.keys(teams).map((abbr) => (
-            <option key={abbr} value={abbr}>
-              {teams[abbr]}
-            </option>
+        <select
+          value={team}
+          onChange={(e) => setTeam(e.target.value)}
+          className="p-2 rounded bg-gray-700"
+        >
+          {Object.entries(teams).map(([abbr, name]) => (
+            <option key={abbr} value={abbr}>{name}</option>
           ))}
         </select>
-      </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Season: </label>
         <input
           type="number"
           value={season}
-          min="2000"
-          max="2100"
-          onChange={(e) => setSeason(parseInt(e.target.value))}
+          onChange={(e) => setSeason(Number(e.target.value))}
+          className="p-2 rounded bg-gray-700 w-24"
         />
-      </div>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <label>Rarity: </label>
-        <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
+        <select
+          value={rarity}
+          onChange={(e) => setRarity(e.target.value)}
+          className="p-2 rounded bg-gray-700"
+        >
           {Object.keys(RARITY_MULTIPLIERS).map((r) => (
-            <option key={r}>{r}</option>
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
+
+        <button
+          onClick={fetchSchedule}
+          className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+        >
+          Fetch Schedule
+        </button>
       </div>
 
-      <button onClick={fetchSchedule} style={{ padding: "0.5rem 1rem", marginBottom: "2rem" }}>
-        Fetch Schedule
-      </button>
+      <h2 className="text-xl font-bold mb-2">Total Rax Earned: {totalRax.toFixed(2)}</h2>
 
-      <h2>Total Rax Earned: {totalRax}</h2>
-
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table className="table-auto border-collapse border border-gray-600 w-full text-center">
         <thead>
-          <tr>
-            <th>Game</th>
-            <th>Date</th>
-            <th>Opponent</th>
-            <th>Score</th>
-            <th>W/L</th>
-            <th>Base Rax</th>
-            <th>Rax</th>
+          <tr className="bg-gray-800">
+            <th className="border border-gray-600 px-2 py-1">Game</th>
+            <th className="border border-gray-600 px-2 py-1">Matchup</th>
+            <th className="border border-gray-600 px-2 py-1">Score</th>
+            <th className="border border-gray-600 px-2 py-1">W/L</th>
+            <th className="border border-gray-600 px-2 py-1">Base Rax</th>
+            <th className="border border-gray-600 px-2 py-1">Rax Earned</th>
           </tr>
         </thead>
         <tbody>
-          {schedule.map((row, i) => (
-            <tr key={i}>
-              <td>{row.game}</td>
-              <td>{row.date}</td>
-              <td>{row.opponent}</td>
-              <td>{row.score}</td>
-              <td>{row.W_L}</td>
-              <td>{row.baseRax}</td>
-              <td>{row.rax}</td>
+          {schedule.map((row, idx) => (
+            <tr key={idx} className="hover:bg-gray-700">
+              <td className="border border-gray-600 px-2 py-1">{row.game}</td>
+              <td className="border border-gray-600 px-2 py-1">{row.matchup}</td>
+              <td className="border border-gray-600 px-2 py-1">{row.score}</td>
+              <td className="border border-gray-600 px-2 py-1">{row.W_L}</td>
+              <td className="border border-gray-600 px-2 py-1">{row.baseRax}</td>
+              <td className="border border-gray-600 px-2 py-1">{row.raxEarned.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
