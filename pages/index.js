@@ -1,88 +1,40 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
-import Dropdown from "../components/Dropdown";
-import ScheduleTable from "../components/ScheduleTable";
-import { calculateRax } from "../utils/raxUtil";
+import React, { useState, useEffect } from "react";
+import SportsSelect from "../components/SportsSelect";
+import TeamSelect from "../components/TeamSelect";
+import YearSelect from "../components/YearSelect";
+import RaxDisplay from "../components/RaxDisplay";
+import { calculateRax } from "../utils/rax";
 
 export default function Home() {
-  const sports = ["NHL", "NFL", "NBA", "CFB", "CBB"];
-  const rarities = ["General", "Common", "Uncommon", "Rare", "Epic", "Leg", "Mystic", "Iconic"];
-
-  const [selectedSport, setSelectedSport] = useState("");
-  const [teams, setTeams] = useState([]);
-  const [selectedTeam, setSelectedTeam] = useState("");
-  const [season, setSeason] = useState(new Date().getFullYear());
-  const [selectedRarity, setSelectedRarity] = useState("General");
-  const [schedule, setSchedule] = useState([]);
+  const [sport, setSport] = useState("");
+  const [team, setTeam] = useState("");
+  const [year, setYear] = useState("");
+  const [teamSchedule, setTeamSchedule] = useState([]);
+  const [rax, setRax] = useState(0);
 
   useEffect(() => {
-    if (!selectedSport) return;
-
-    const fetchTeams = async () => {
-      let sportPath = selectedSport.toLowerCase();
-      if (selectedSport === "CFB" || selectedSport === "CBB") sportPath = "mens-college-basketball";
-
-      const url = `http://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams`;
-      const res = await axios.get(url);
-      const allTeams = res.data.sports[0].leagues[0].teams.map(t => ({
-        displayName: t.team.displayName,
-        abbreviation: t.team.abbreviation
-      }));
-      setTeams(allTeams);
-    };
-    fetchTeams();
-  }, [selectedSport]);
-
-  useEffect(() => {
-    if (!selectedTeam) return;
-
-    const fetchSchedule = async () => {
-      const url = `http://site.api.espn.com/apis/site/v2/sports/${selectedSport.toLowerCase()}/${selectedTeam}/schedule?season=${season}&seasontype=2`;
-      try {
-        const res = await axios.get(url);
-        const games = res.data.events.map(ev => {
-          const homeTeam = ev.competitions[0].competitors.find(c => c.homeAway === "home");
-          const awayTeam = ev.competitions[0].competitors.find(c => c.homeAway === "away");
-
-          return {
-            date: ev.date,
-            opponent: homeTeam.team.displayName === selectedTeam ? awayTeam.team.displayName : homeTeam.team.displayName,
-            location: homeTeam.team.displayName === selectedTeam ? "Home" : "Away",
-            homeScore: homeTeam.score,
-            awayScore: awayTeam.score,
-            type: ev.season.type === 2 ? "Playoffs" : "Regular",
-            homeTeam: homeTeam.team.displayName,
-            awayTeam: awayTeam.team.displayName,
-            rax: calculateRax({
-              homeScore: { value: homeTeam.score },
-              awayScore: { value: awayTeam.score },
-              homeTeam: homeTeam.team.displayName,
-              awayTeam: awayTeam.team.displayName,
-              type: ev.season.type === 2 ? "Playoffs" : "Regular"
-            }, selectedTeam, selectedRarity, selectedSport)
-          };
+    if (team && year) {
+      const url = `http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team}/schedule?season=${year}&seasontype=2`;
+      fetch(url)
+        .then((res) => res.json())
+        .then((data) => {
+          const schedule = data.events.map((e) => ({
+            win: e.competitions[0].competitors[0].homeTeamScore >
+                 e.competitions[0].competitors[1].awayTeamScore
+          }));
+          setTeamSchedule(schedule);
+          setRax(calculateRax(schedule));
         });
-        setSchedule(games);
-      } catch (err) {
-        console.error(err);
-        setSchedule([]);
-      }
-    };
-
-    fetchSchedule();
-  }, [selectedTeam, season, selectedSport, selectedRarity]);
+    }
+  }, [team, year]);
 
   return (
-    <div style={{ padding: "2rem" }}>
+    <div>
       <h1>Team Schedule Viewer</h1>
-      <Dropdown label="Select Sport" options={sports} value={selectedSport} onChange={setSelectedSport} />
-      <Dropdown label="Select Team" options={teams} value={selectedTeam} onChange={setSelectedTeam} />
-      <Dropdown label="Season" options={[2024, 2025]} value={season} onChange={setSeason} />
-      <Dropdown label="Rarity" options={rarities} value={selectedRarity} onChange={setSelectedRarity} />
-
-      <h2>Selected: {selectedSport} - {selectedTeam} - {season} - {selectedRarity}</h2>
-
-      <ScheduleTable schedule={schedule} />
+      <SportsSelect selectedSport={sport} onChange={setSport} />
+      <TeamSelect sport={sport} selectedTeam={team} onChange={setTeam} />
+      <YearSelect selectedYear={year} onChange={setYear} />
+      <RaxDisplay rax={rax} />
     </div>
   );
 }
