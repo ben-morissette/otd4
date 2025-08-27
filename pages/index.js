@@ -1,88 +1,105 @@
-import { useState, useEffect } from 'react';
-import TeamSelector from '../components/TeamSelector';
-import RaxUtil from '../utils/raxUtil';
+import { useEffect, useState } from "react";
 
 export default function Home() {
-  const [sport, setSport] = useState('nfl');
-  const [team, setTeam] = useState('');
-  const [season, setSeason] = useState(new Date().getFullYear());
-  const [rarity, setRarity] = useState('General');
+  const [sport, setSport] = useState("NHL");
+  const [teamAbbr, setTeamAbbr] = useState("");
+  const [teams, setTeams] = useState({});
+  const [season, setSeason] = useState(2024);
+  const [rarity, setRarity] = useState("General");
   const [schedule, setSchedule] = useState([]);
-  const [rax, setRax] = useState(0);
+  const [totalRax, setTotalRax] = useState(0);
 
-  const sports = ['NHL', 'NFL', 'NBA', 'CFB', 'CBB'];
-
-  // Fetch schedule when team or season changes
   useEffect(() => {
-    if (!team) return;
-
-    async function fetchSchedule() {
-      try {
-        const abbr = team;
-        const seasonType = 2; // postseason
-        const url = `http://site.api.espn.com/apis/site/v2/sports/${sport.toLowerCase()}/teams/${abbr}/schedule?season=${season}&seasontype=${seasonType}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        setSchedule(data.events || []);
-        setRax(RaxUtil.calculate(data.events || [])); // example rax
-      } catch (err) {
-        console.error(err);
-      }
+    async function fetchTeams() {
+      const res = await fetch(`/api/teams?sport=${sport}`);
+      const data = await res.json();
+      setTeams(data);
+      setTeamAbbr(Object.keys(data)[0]);
     }
+    fetchTeams();
+  }, [sport]);
 
-    fetchSchedule();
-  }, [team, season, sport]);
+  const fetchSchedule = async () => {
+    const res = await fetch(`/api/schedule?sport=${sport}&teamAbbr=${teamAbbr}&season=${season}&rarity=${rarity}`);
+    const data = await res.json();
+    setSchedule(data.schedule);
+    setTotalRax(data.totalRax);
+  };
+
+  const getRowStyle = (W_L) => {
+    if (W_L === "W") return { backgroundColor: "#c6f6d5" }; // green for wins
+    if (W_L === "L") return { backgroundColor: "#feb2b2" }; // red for losses
+    return {};
+  };
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: 20 }}>
       <h1>Team Schedule Viewer</h1>
 
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: 10 }}>
         <label>Sport: </label>
-        <select value={sport} onChange={e => setSport(e.target.value.toLowerCase())}>
-          {sports.map(s => (
-            <option key={s} value={s.toLowerCase()}>{s}</option>
+        <select value={sport} onChange={e => setSport(e.target.value)}>
+          <option>NHL</option>
+          <option>NFL</option>
+          <option>NBA</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label>Team: </label>
+        <select value={teamAbbr} onChange={e => setTeamAbbr(e.target.value)}>
+          {Object.keys(teams).map(abbr => (
+            <option key={abbr} value={abbr}>{teams[abbr]}</option>
           ))}
         </select>
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Team: </label>
-        <TeamSelector sport={sport} onSelect={setTeam} />
-      </div>
-
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: 10 }}>
         <label>Season: </label>
-        <input
-          type="number"
-          value={season}
-          onChange={e => setSeason(e.target.value)}
-          min="2000"
-          max={new Date().getFullYear()}
-        />
+        <input type="number" value={season} min={2000} max={2100} onChange={e => setSeason(e.target.value)} />
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
+      <div style={{ marginBottom: 10 }}>
         <label>Rarity: </label>
         <select value={rarity} onChange={e => setRarity(e.target.value)}>
-          <option>General</option>
-          <option>Rare</option>
-          <option>Epic</option>
-          <option>Legendary</option>
+          {["General","Common","Uncommon","Rare","Epic","Leg","Mystic","Iconic"].map(r => (
+            <option key={r}>{r}</option>
+          ))}
         </select>
       </div>
 
-      <h2>Selected: {`${sport.toUpperCase()} - ${team} - ${season} - ${rarity}`}</h2>
-      <h2>RAX: {rax}</h2>
+      <button onClick={fetchSchedule} style={{ marginBottom: 20 }}>Get Schedule</button>
 
-      <h3>Schedule:</h3>
-      <ul>
-        {schedule.map(game => (
-          <li key={game.id}>
-            {game.name} - {game.date}
-          </li>
-        ))}
-      </ul>
+      <h2>Total RAX: {totalRax.toFixed(2)}</h2>
+
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+        <thead>
+          <tr>
+            <th style={{ border: "1px solid black", padding: 5 }}>Date</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>Name</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>Type</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>Score</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>W/L</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>Margin</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>Base RAX</th>
+            <th style={{ border: "1px solid black", padding: 5 }}>RAX Earned</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((game, idx) => (
+            <tr key={idx} style={getRowStyle(game.W_L)}>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.date}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.name}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.type}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.Score}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.W_L}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.margin}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.baseRax}</td>
+              <td style={{ border: "1px solid black", padding: 5 }}>{game.rax.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
