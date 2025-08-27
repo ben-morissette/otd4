@@ -1,5 +1,4 @@
-import fetch from "node-fetch";
-
+// pages/api/teams.js
 export default async function handler(req, res) {
   const { sport } = req.query;
   if (!sport) return res.status(400).json({ error: "Missing sport" });
