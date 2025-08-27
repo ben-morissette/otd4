@@ -1,50 +1,93 @@
-import fetch from "node-fetch";
-
-const RARITY_MULTIPLIERS = {
-  General: 1, Common: 1.2, Uncommon: 1.4,
-  Rare: 1.6, Epic: 2, Leg: 2.5, Mystic: 4, Iconic: 6
+export const RARITY_MULTIPLIERS = {
+  General: 1,
+  Common: 1.2,
+  Uncommon: 1.4,
+  Rare: 1.6,
+  Epic: 2,
+  Leg: 2.5,
+  Mystic: 4,
+  Iconic: 6
 };
 
 export default async function handler(req, res) {
-  const { sport, teamAbbr, season, rarity } = req.query;
-  const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
-
-  let regUrl, playoffUrl;
-  if (sport === "NHL" || sport === "NFL" || sport === "NBA") {
-    const baseUrl = sport === "NHL" ? "hockey/nhl" : sport === "NFL" ? "football/nfl" : "basketball/nba";
-    regUrl = `http://site.api.espn.com/apis/site/v2/sports/${baseUrl}/teams/${teamAbbr}/schedule?season=${season}&seasontype=2`;
-    playoffUrl = `http://site.api.espn.com/apis/site/v2/sports/${baseUrl}/teams/${teamAbbr}/schedule?season=${season}&seasontype=3`;
-  } else return res.status(400).json({ error: "Invalid sport" });
-
   try {
-    const [regRes, playoffRes] = await Promise.all([fetch(regUrl), fetch(playoffUrl)]);
-    const regData = await regRes.json();
-    const playoffData = await playoffRes.json();
+    const { sport, teamAbbr, season, rarity } = req.query;
+    const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
 
-    const teamName = regData?.team?.displayName || "";
+    const baseUrl = (type) => {
+      if (sport === "NHL") return `http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${teamAbbr}/schedule?season=${season}&seasontype=${type}`;
+      if (sport === "NFL") return `http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${teamAbbr}/schedule?season=${season}&seasontype=${type}`;
+      if (sport === "NBA") return `http://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamAbbr}/schedule?season=${season}&seasontype=${type}`;
+    };
 
-    const processEvents = (events, type) => events.map(event => {
-      let homeScore = 0, awayScore = 0, homeDisplay = "0", awayDisplay = "0";
-      event.competitions?.[0]?.competitors?.forEach(c => {
-        if (c.homeAway === "home") {
-          homeScore = c.score?.value || 0;
-          homeDisplay = c.score?.displayValue || "0";
-        } else {
-          awayScore = c.score?.value || 0;
-          awayDisplay = c.score?.displayValue || "0";
+    const [regRes, playoffRes] = await Promise.all([
+      fetch(baseUrl(2)),
+      fetch(baseUrl(3))
+    ]);
+
+    const [regData, playoffData] = await Promise.all([regRes.json(), playoffRes.json()]);
+
+    if (!regData.team || !regData.team.displayName) {
+      return res.status(404).json({ schedule: [], totalRax: 0 });
+    }
+
+    const teamName = regData.team.displayName;
+    const scheduleList = [];
+
+    // Helper to process events
+    const processEvent = (event, type) => {
+      let homeScore = 0, awayScore = 0;
+      let homeDisplay = "0", awayDisplay = "0";
+
+      for (const competition of event.competitions || []) {
+        for (const competitor of competition.competitors || []) {
+          if (competitor.homeAway === "home") {
+            homeScore = parseInt(competitor.score || 0);
+            homeDisplay = competitor.score?.toString() || "0";
+          } else {
+            awayScore = parseInt(competitor.score || 0);
+            awayDisplay = competitor.score?.toString() || "0";
+          }
         }
-      });
+      }
 
-      const winner = homeScore > awayScore ? event.name.split(" at ")[1] :
-                     awayScore > homeScore ? event.name.split(" at ")[0] : "Tie";
-      const loser = homeScore > awayScore ? event.name.split(" at ")[0] :
-                    awayScore > homeScore ? event.name.split(" at ")[1] : "Tie";
+      let winner = "", loser = "";
+      if (homeScore > awayScore) {
+        winner = event.name.split(" at ")[1] || "";
+        loser = event.name.split(" at ")[0] || "";
+      } else if (awayScore > homeScore) {
+        winner = event.name.split(" at ")[0] || "";
+        loser = event.name.split(" at ")[1] || "";
+      } else {
+        winner = "Tie";
+        loser = "Tie";
+      }
+
       const margin = Math.abs(homeScore - awayScore);
 
+      // Base RAX calculation
       let baseRax = 0;
-      if (sport === "NHL") baseRax = winner === teamName ? (type==="Playoffs" ? 20 + 20*margin : 12*margin) : 0;
-      else if (sport === "NFL") baseRax = winner === teamName ? 100 + 2*margin : homeScore + 5;
-      else if (sport === "NBA") baseRax = winner === teamName ? (type==="Playoffs" ? 30 + 2.5*margin : 2.5*margin) : 0;
+      if (winner === teamName) {
+        if (type === "Playoffs") {
+          if (sport === "NHL") baseRax = 20 + 20 * margin;
+          if (sport === "NFL") baseRax = 100 + 2 * margin;
+          if (sport === "NBA") baseRax = 30 + 2.5 * margin;
+        } else {
+          if (sport === "NHL") baseRax = 12 * margin;
+          if (sport === "NFL") baseRax = 100 + 2 * margin;
+          if (sport === "NBA") baseRax = 2.5 * margin;
+        }
+      } else {
+        if (sport === "NFL" && type !== "Playoffs") {
+          baseRax = (teamName === event.name.split(" at ")[0] ? awayScore : homeScore) + 5;
+        }
+      }
+
+      const rax = baseRax * rarityMultiplier;
+
+      let W_L = "";
+      if (winner === teamName) W_L = "W";
+      else if (loser === teamName) W_L = "L";
 
       return {
         date: event.date || "",
@@ -55,21 +98,41 @@ export default async function handler(req, res) {
         loser,
         margin,
         baseRax,
-        rax: baseRax * rarityMultiplier,
-        W_L: winner === teamName ? "W" : loser === teamName ? "L" : ""
+        rax,
+        W_L
       };
-    });
+    };
 
-    let schedule = [...processEvents(regData.events || [], "Regular Season")];
-    if ((playoffData.events || []).length > 0) {
-      schedule.push({ date: "", name: "Playoffs", type: "", Score: "", winner: "", loser: "", margin: "", baseRax: "", rax: 0, W_L: "" });
-      schedule = schedule.concat(processEvents(playoffData.events, "Playoffs"));
+    // Regular season events
+    for (const event of regData.events || []) {
+      scheduleList.push(processEvent(event, "Regular Season"));
     }
 
-    const totalRax = schedule.reduce((acc, e) => acc + (e.rax || 0), 0);
+    // Playoffs separator row
+    if (playoffData.events && playoffData.events.length > 0) {
+      scheduleList.push({
+        date: "",
+        name: "Playoffs",
+        type: "",
+        Score: "",
+        winner: "",
+        loser: "",
+        margin: "",
+        baseRax: "",
+        rax: "",
+        W_L: ""
+      });
 
-    res.status(200).json({ schedule, totalRax });
+      for (const event of playoffData.events || []) {
+        scheduleList.push(processEvent(event, "Playoffs"));
+      }
+    }
+
+    const totalRax = scheduleList.reduce((acc, g) => acc + (g.rax || 0), 0);
+
+    res.status(200).json({ schedule: scheduleList, totalRax });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ schedule: [], totalRax: 0, error: err.message });
   }
 }

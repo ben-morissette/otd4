@@ -27,8 +27,8 @@ export default function Home() {
   };
 
   const getRowStyle = (W_L) => {
-    if (W_L === "W") return { backgroundColor: "#c6f6d5" }; // green for wins
-    if (W_L === "L") return { backgroundColor: "#feb2b2" }; // red for losses
+    if (W_L === "W") return { backgroundColor: "#c6f6d5" };
+    if (W_L === "L") return { backgroundColor: "#feb2b2" };
     return {};
   };
 
