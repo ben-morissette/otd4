@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 const RARITY_MULTIPLIERS = {
   General: 1,
   Common: 1.2,
@@ -44,7 +42,6 @@ export default async function handler(req, res) {
 
     const scheduleList = [];
 
-    // Helper function to extract scores
     const getScores = (event) => {
       let home = 0, away = 0;
       for (const competition of event.competitions) {
@@ -56,7 +53,6 @@ export default async function handler(req, res) {
       return { home, away };
     };
 
-    // Regular season
     for (const event of scheduleData.events || []) {
       const { home, away } = getScores(event);
       scheduleList.push({
@@ -69,7 +65,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Playoffs
     if (playoffData.events && playoffData.events.length) {
       scheduleList.push({
         date: "",
