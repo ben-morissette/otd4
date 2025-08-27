@@ -20,19 +20,19 @@ export default function Home() {
     Iconic: 6
   };
 
-  const SPORT_APIS = {
-    NHL: "hockey/nhl",
-    NFL: "football/nfl",
-    NBA: "basketball/nba"
-  };
-
   // Fetch teams
   useEffect(() => {
     async function fetchTeams() {
-      const res = await fetch(`/api/teams?sport=${sport}`);
-      const data = await res.json();
-      setTeamsList(data);
-      setTeam(Object.keys(data)[0] || "");
+      try {
+        const res = await fetch(`/api/teams?sport=${sport}`);
+        const data = await res.json();
+        setTeamsList(data);
+        setTeam(Object.keys(data)[0] || "");
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+        setTeamsList({});
+        setTeam("");
+      }
     }
     fetchTeams();
   }, [sport]);
@@ -41,12 +41,18 @@ export default function Home() {
   useEffect(() => {
     if (!team) return;
     async function fetchSchedule() {
-      const res = await fetch(
-        `/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`
-      );
-      const data = await res.json();
-      setSchedule(data.schedule);
-      setTotalRax(data.total_rax);
+      try {
+        const res = await fetch(
+          `/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`
+        );
+        const data = await res.json();
+        setSchedule(data.schedule || []);
+        setTotalRax(data.total_rax || 0);
+      } catch (err) {
+        console.error("Error fetching schedule:", err);
+        setSchedule([]);
+        setTotalRax(0);
+      }
     }
     fetchSchedule();
   }, [sport, team, season, rarity]);
@@ -55,6 +61,7 @@ export default function Home() {
     <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
       <h1>Team Schedule Viewer</h1>
 
+      {/* Sport Picker */}
       <div style={{ marginBottom: "15px" }}>
         <label>
           Select Sport:{" "}
@@ -66,19 +73,26 @@ export default function Home() {
         </label>
       </div>
 
+      {/* Team Picker */}
       <div style={{ marginBottom: "15px" }}>
         <label>
           Select Team:{" "}
-          <select value={team} onChange={(e) => setTeam(e.target.value)}>
-            {Object.keys(teamsList).map((abbr) => (
-              <option key={abbr} value={abbr}>
-                {teamsList[abbr]}
-              </option>
-            ))}
+          <select
+            value={team}
+            onChange={(e) => setTeam(e.target.value)}
+            disabled={!teamsList || Object.keys(teamsList).length === 0}
+          >
+            {teamsList &&
+              Object.keys(teamsList).map((abbr) => (
+                <option key={abbr} value={abbr}>
+                  {teamsList[abbr]}
+                </option>
+              ))}
           </select>
         </label>
       </div>
 
+      {/* Season Picker */}
       <div style={{ marginBottom: "15px" }}>
         <label>
           Season:{" "}
@@ -95,6 +109,7 @@ export default function Home() {
         </label>
       </div>
 
+      {/* Rarity Picker */}
       <div style={{ marginBottom: "15px" }}>
         <label>
           Rarity:{" "}
@@ -108,10 +123,12 @@ export default function Home() {
         </label>
       </div>
 
+      {/* Total Rax */}
       <div style={{ marginTop: "20px" }}>
         <strong>Total Rax Earned: {totalRax.toFixed(2)}</strong>
       </div>
 
+      {/* Schedule Table */}
       <div style={{ marginTop: "15px" }}>
         <table
           style={{
@@ -131,16 +148,24 @@ export default function Home() {
             </tr>
           </thead>
           <tbody>
-            {schedule.map((row, idx) => (
-              <tr key={idx}>
-                <td>{row.date}</td>
-                <td>{row.name}</td>
-                <td>{row.Score}</td>
-                <td>{row.type}</td>
-                <td>{row["W/L"]}</td>
-                <td>{row.rax_earned}</td>
+            {schedule && schedule.length > 0 ? (
+              schedule.map((row, idx) => (
+                <tr key={idx}>
+                  <td>{row.date}</td>
+                  <td>{row.name}</td>
+                  <td>{row.Score}</td>
+                  <td>{row.type}</td>
+                  <td>{row["W/L"]}</td>
+                  <td>{row.rax_earned}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" style={{ textAlign: "center" }}>
+                  Loading schedule...
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
