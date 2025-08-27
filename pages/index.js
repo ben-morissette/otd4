@@ -21,8 +21,6 @@ export default function Home() {
 
     setLoading(true);
     setError("");
-    setTeams({});
-    setTeam("");
 
     fetch(`/api/teams?sport=${sport}`)
       .then(res => res.json())
@@ -52,8 +50,6 @@ export default function Home() {
 
     setLoading(true);
     setError("");
-    setSchedule([]);
-    setTotalRax(0);
 
     fetch(`/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`)
       .then(res => res.json())
@@ -96,7 +92,6 @@ export default function Home() {
         <select
           value={team}
           onChange={e => setTeam(e.target.value)}
-          disabled={Object.keys(teams).length === 0}
         >
           {Object.keys(teams).map(abbr => (
             <option key={abbr} value={abbr}>
@@ -152,7 +147,7 @@ export default function Home() {
             <tbody>
               {schedule.map((game, idx) => (
                 <tr key={idx}>
-                  <td>{game.date}</td>
+                  <td>{new Date(game.date).toLocaleString()}</td>
                   <td>{game.name}</td>
                   <td>{game.Score}</td>
                   <td>{game.type}</td>
