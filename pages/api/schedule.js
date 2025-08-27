@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing parameters" });
   }
 
+  // Set URLs for schedule
   let url, playoffUrl;
   if (sport === "NHL") {
     url = `http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${team}/schedule?season=${season}&seasontype=2`;
@@ -42,29 +43,50 @@ export default async function handler(req, res) {
 
     const scheduleList = [];
 
+    // Safe score extraction
     const getScores = (event) => {
-      let home = 0, away = 0;
-      for (const competition of event.competitions) {
-        for (const competitor of competition.competitors) {
-          if (competitor.homeAway === "home") home = competitor.score;
-          else away = competitor.score;
+      let home = "", away = "";
+      for (const competition of event.competitions || []) {
+        for (const competitor of competition.competitors || []) {
+          const score = competitor.score?.value ?? "";
+          if (competitor.homeAway === "home") home = score;
+          else away = score;
         }
       }
       return { home, away };
     };
 
+    // Add regular season
     for (const event of scheduleData.events || []) {
       const { home, away } = getScores(event);
+      const margin = home !== "" && away !== "" ? Math.abs(home - away) : 0;
+      const winner =
+        home !== "" && away !== ""
+          ? home > away
+            ? event.name.split(" at ")[1]
+            : away > home
+            ? event.name.split(" at ")[0]
+            : "Tie"
+          : "";
       scheduleList.push({
         date: event.date,
         name: event.name,
         type: "Regular Season",
-        Score: `${away} - ${home}`,
-        WL: home > away ? (teamName === event.name.split(" at ")[1] ? "W" : "L") : "L",
-        rax_earned: (home > away ? 12 * Math.abs(home - away) : 0) * rarityMultiplier,
+        Score: home !== "" && away !== "" ? `${away} - ${home}` : "",
+        WL:
+          winner === teamName
+            ? "W"
+            : winner && winner !== "Tie"
+            ? "L"
+            : "",
+        rax_earned:
+          winner === teamName
+            ? 12 * margin * rarityMultiplier
+            : 0,
       });
     }
 
+    // Add playoff placeholder + playoff games
     if (playoffData.events && playoffData.events.length) {
       scheduleList.push({
         date: "",
@@ -74,23 +96,46 @@ export default async function handler(req, res) {
         WL: "",
         rax_earned: 0,
       });
+
       for (const event of playoffData.events) {
         const { home, away } = getScores(event);
+        const margin = home !== "" && away !== "" ? Math.abs(home - away) : 0;
+        const winner =
+          home !== "" && away !== ""
+            ? home > away
+              ? event.name.split(" at ")[1]
+              : away > home
+              ? event.name.split(" at ")[0]
+              : "Tie"
+            : "";
         scheduleList.push({
           date: event.date,
           name: event.name,
           type: "Playoffs",
-          Score: `${away} - ${home}`,
-          WL: home > away ? (teamName === event.name.split(" at ")[1] ? "W" : "L") : "L",
-          rax_earned: (home > away ? 20 * Math.abs(home - away) + 20 : 0) * rarityMultiplier,
+          Score: home !== "" && away !== "" ? `${away} - ${home}` : "",
+          WL:
+            winner === teamName
+              ? "W"
+              : winner && winner !== "Tie"
+              ? "L"
+              : "",
+          rax_earned:
+            winner === teamName
+              ? (20 + 20 * margin) * rarityMultiplier
+              : 0,
         });
       }
     }
 
-    const totalRax = scheduleList.reduce((sum, g) => sum + (g.rax_earned || 0), 0);
+    // Total RAX
+    const totalRax = scheduleList.reduce(
+      (sum, g) => sum + (g.rax_earned || 0),
+      0
+    );
 
     res.status(200).json({ schedule: scheduleList, totalRax });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to fetch schedule" });
   }
 }
