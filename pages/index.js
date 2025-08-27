@@ -24,6 +24,7 @@ export default function Home() {
 
   // Fetch teams whenever sport changes
   useEffect(() => {
+    if (!sport) return;
     setLoading(true);
     setError("");
     fetch(`/api/teams?sport=${sport}`)
@@ -34,18 +35,21 @@ export default function Home() {
           setTeams({});
           setTeam("");
         } else {
-          setTeams(data.teams);
-          setTeam(Object.keys(data.teams)[0] || "");
+          setTeams(data.teams || {});
+          const firstTeam = Object.keys(data.teams || {})[0] || "";
+          setTeam(firstTeam);
         }
       })
       .catch(err => {
         console.error(err);
         setError("Failed to load teams");
+        setTeams({});
+        setTeam("");
       })
       .finally(() => setLoading(false));
   }, [sport]);
 
-  // Fetch schedule when team, season, or rarity changes
+  // Fetch schedule whenever team, season, or rarity changes
   useEffect(() => {
     if (!team) return;
     setLoading(true);

@@ -1,5 +1,5 @@
 {
-  "name": "team-schedule-viewer",
+  "name": "otd4",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -7,13 +7,13 @@
     "build": "next build",
     "start": "next start"
   },
+  "dependencies": {
+    "next": "^13.5.10",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "node-fetch": "^3.3.2"
+  },
   "engines": {
     "node": "22.x"
-  },
-  "dependencies": {
-    "next": "13.5.10",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "node-fetch": "^3.3.2"
   }
 }
