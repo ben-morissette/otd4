@@ -1,208 +1,161 @@
-import { useState, useEffect } from 'react';
-
-const SPORTS = [
-  { label: 'NFL', value: 'football/nfl' },
-  { label: 'MLB', value: 'baseball/mlb' },
-  { label: 'NBA', value: 'basketball/nba' },
-  { label: 'NHL', value: 'hockey/nhl' },
-  { label: 'CFB', value: 'football/college-football' },
-  { label: 'CBB', value: 'basketball/college-basketball' },
-  { label: 'WNBA', value: 'basketball/wnba' },
-];
+import { useState, useEffect } from "react";
 
 export default function Home() {
-  const [sport, setSport] = useState('');
-  const [season, setSeason] = useState('');
+  const [sport, setSport] = useState("");
+  const [season, setSeason] = useState("");
+  const [team, setTeam] = useState("");
   const [teams, setTeams] = useState([]);
-  const [team, setTeam] = useState('');
-  const [schedule, setSchedule] = useState([]);
-  const [totalRax, setTotalRax] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [games, setGames] = useState([]);
+  const [rax, setRax] = useState(0);
 
+  const sportsOptions = [
+    { label: "NFL", value: "football/nfl" },
+    { label: "NBA", value: "basketball/nba" },
+    { label: "MLB", value: "baseball/mlb" },
+    { label: "NHL", value: "hockey/nhl" },
+    { label: "CFB", value: "football/college-football" },
+    { label: "CBB", value: "basketball/college-basketball" },
+    { label: "WNBA", value: "basketball/wnba" },
+  ];
+
+  const seasonsOptions = ["2023", "2024", "2025"]; // Can be dynamic later
+
+  // Fetch teams when sport changes
   useEffect(() => {
     if (!sport) return;
+    setTeam("");
     setTeams([]);
-    setTeam('');
-    fetch(`http://site.api.espn.com/apis/site/v2/sports/${sport}/teams`)
-      .then(res => res.json())
-      .then(data => {
-        const allTeams = data.sports[0].leagues[0].teams.map(t => ({
-          id: t.team.id,
-          name: t.team.displayName,
-        }));
-        setTeams(allTeams);
-      });
+    fetch(`/api/teams?sport=${sport}`)
+      .then((res) => res.json())
+      .then((data) => setTeams(data))
+      .catch((err) => console.error(err));
   }, [sport]);
 
+  // Fetch games when sport, season, and team selected
   useEffect(() => {
-    if (!sport || !team || !season) return;
-    setSchedule([]);
-    setTotalRax(0);
-    setLoading(true);
+    if (!sport || !season || !team) return;
+    fetch(`/api/schedule?sport=${sport}&season=${season}&team=${team}`)
+      .then((res) => res.json())
+      .then((data) => setGames(data))
+      .catch((err) => console.error(err));
+  }, [sport, season, team]);
 
-    fetch(`http://site.api.espn.com/apis/site/v2/sports/${sport}/scoreboard?season=${season}`)
-      .then(res => res.json())
-      .then(data => {
-        const games = [];
-        data.events.forEach(event => {
-          const home = event.competitions[0].competitors.find(c => c.homeAway === 'home');
-          const away = event.competitions[0].competitors.find(c => c.homeAway === 'away');
-          if (home.id === team || away.id === team) {
-            const teamComp = home.id === team ? home : away;
-            const oppComp = home.id === team ? away : home;
-            games.push({
-              date: event.date,
-              opponent: oppComp.team.displayName,
-              teamScore: teamComp.score ? Number(teamComp.score) : 0,
-              opponentScore: oppComp.score ? Number(oppComp.score) : 0,
-              type: event.status.type.name === 'PLAYOFF' ? 'Playoff' : 'Regular',
-              upset: false,
-              opponentWinningRecord: false,
-            });
-          }
-        });
-        setSchedule(games);
-        setTotalRax(calculateRax(sport.split('/')[1].toUpperCase(), games));
-      })
-      .finally(() => setLoading(false));
-  }, [sport, team, season]);
+  // Calculate RAX whenever games change
+  useEffect(() => {
+    if (!games.length) return;
 
-  function calculateRax(sportLabel, games) {
-    return games.reduce((total, game) => {
-      const teamScore = game.teamScore || 0;
-      const opponentScore = game.opponentScore || 0;
-      const diff = Math.abs(teamScore - opponentScore);
-      let rax = 0;
+    let total = 0;
+    games.forEach((g) => {
+      const { homeScore, awayScore, winner, isPlayoff } = g;
+      const teamScore = g.teamId === g.homeId ? homeScore : awayScore;
+      const oppScore = g.teamId === g.homeId ? awayScore : homeScore;
+      const diff = teamScore - oppScore;
 
-      switch (sportLabel) {
-        case 'MLB':
-          if (game.type === 'Playoff') {
-            if (teamScore > opponentScore) rax = 20 + 8 * diff;
+      switch (sport) {
+        case "baseball/mlb":
+          if (winner === team) {
+            total += isPlayoff ? 20 + 8 * diff : teamScore + 5 * diff;
           } else {
-            rax = teamScore;
-            if (teamScore > opponentScore) rax += 5 * diff;
+            total += isPlayoff ? 0 : teamScore;
           }
           break;
-
-        case 'NHL':
-          if (teamScore > opponentScore) {
-            rax = diff * 12;
-            if (game.type === 'Playoff') rax = 20 + diff * 20;
+        case "basketball/nba":
+        case "basketball/wnba":
+        case "basketball/college-basketball":
+          if (winner === team) {
+            total += isPlayoff ? 30 + diff : 2.5 * diff;
           }
           break;
-
-        case 'CFB':
-          if (teamScore > opponentScore) {
-            if (game.upset) rax = 200 + diff;
-            else rax = 100 + diff;
+        case "hockey/nhl":
+          if (winner === team) {
+            total += isPlayoff ? 20 + 20 * diff : 12 * diff;
+          }
+          break;
+        case "football/nfl":
+        case "football/college-football":
+          if (winner === team) {
+            total += sport.includes("college") ? 100 + diff : 100 + diff * 2;
           } else {
-            rax = Math.min(50, teamScore);
-            if (game.upset) rax = 0;
+            total += sport.includes("college") ? Math.min(50, teamScore) : teamScore;
           }
           break;
-
-        case 'NFL':
-          if (teamScore > opponentScore) rax = 100 + diff * 2;
-          else rax = teamScore;
-          break;
-
-        case 'NBA':
-          if (teamScore > opponentScore) {
-            if (game.type === 'Playoff') rax = 30 + diff;
-            else rax = 2.5 * diff;
-          }
-          break;
-
-        case 'CBB':
-          if (teamScore > opponentScore) {
-            if (game.type === 'Tournament') rax = 60 + diff;
-            else rax = 50 + diff;
-          }
-          break;
-
-        case 'WNBA':
-          if (teamScore > opponentScore) {
-            if (game.type === 'Playoff') rax = 80 + diff;
-            else rax = (game.opponentWinningRecord ? 50 : 40) + Math.min(diff, 10);
-          }
-          break;
-
         default:
-          rax = 0;
+          break;
       }
+    });
 
-      return total + rax;
-    }, 0);
-  }
+    setRax(Math.max(0, total));
+  }, [games, sport, team]);
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div style={{ padding: 20 }}>
       <h1>Team RAX Calculator</h1>
-      <div style={{ marginBottom: '1rem' }}>
+
+      <div>
         <label>Sport:</label>
-        <select value={sport} onChange={e => setSport(e.target.value)}>
-          <option value="">Select sport</option>
-          {SPORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        <select value={sport} onChange={(e) => setSport(e.target.value)}>
+          <option value="">Select Sport</option>
+          {sportsOptions.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
         </select>
       </div>
 
-      {sport && (
-        <div style={{ marginBottom: '1rem' }}>
-          <label>Season:</label>
-          <select value={season} onChange={e => setSeason(e.target.value)}>
-            <option value="">Select season</option>
-            {Array.from({ length: 5 }, (_, i) => {
-              const year = new Date().getFullYear() - i;
-              return (
-                <option key={year} value={year}>
-                  {year}–{year + 1}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
+      <div>
+        <label>Season:</label>
+        <select value={season} onChange={(e) => setSeason(e.target.value)}>
+          <option value="">Select Season</option>
+          {seasonsOptions.map((s) => (
+            <option key={s} value={s}>
+              {s}-{parseInt(s) + 1}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {teams.length > 0 && (
-        <div style={{ marginBottom: '1rem' }}>
-          <label>Team:</label>
-          <select value={team} onChange={e => setTeam(e.target.value)}>
-            <option value="">Select team</option>
-            {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
-      )}
+      <div>
+        <label>Team:</label>
+        <select value={team} onChange={(e) => setTeam(e.target.value)}>
+          <option value="">Select Team</option>
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {loading && <p>Loading schedule...</p>}
+      <div>
+        <h2>RAX: {rax}</h2>
+      </div>
 
-      {schedule.length > 0 && (
-        <>
-          <h2>Schedule & RAX</h2>
-          <table border="1" cellPadding="5" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Opponent</th>
-                <th>Team Score</th>
-                <th>Opponent Score</th>
-                <th>Type</th>
+      <div>
+        <h3>Games</h3>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Opponent</th>
+              <th>Score</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            {games.map((g) => (
+              <tr key={g.id}>
+                <td>{g.date}</td>
+                <td>{g.opponent}</td>
+                <td>
+                  {g.homeScore} - {g.awayScore}
+                </td>
+                <td>{g.winner === team ? "W" : "L"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {schedule.map((game, i) => (
-                <tr key={i}>
-                  <td>{new Date(game.date).toLocaleString()}</td>
-                  <td>{game.opponent}</td>
-                  <td>{game.teamScore}</td>
-                  <td>{game.opponentScore}</td>
-                  <td>{game.type}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h3>Total RAX: {totalRax}</h3>
-        </>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
