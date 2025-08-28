@@ -1,14 +1,14 @@
-export default function TeamSelector({ teams, team, setTeam }) {
+export default function TeamSelector({ teams, selectedTeam, onChange }) {
   return (
     <select
-      className="border p-2 rounded w-full"
-      value={team}
-      onChange={(e) => setTeam(e.target.value)}
+      className="border p-2 rounded w-full mb-4"
+      value={selectedTeam}
+      onChange={(e) => onChange(e.target.value)}
     >
       <option value="">Select Team</option>
-      {teams.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.name}
+      {teams.map((team) => (
+        <option key={team.id} value={team.id}>
+          {team.displayName}
         </option>
       ))}
     </select>

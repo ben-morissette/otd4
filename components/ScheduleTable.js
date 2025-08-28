@@ -1,29 +1,27 @@
 export default function ScheduleTable({ schedule }) {
-  if (!schedule.length) {
-    return <p className="text-center mt-6">No schedule loaded yet.</p>;
+  if (!schedule || schedule.length === 0) {
+    return <p className="text-gray-500">No games found.</p>;
   }
 
   return (
-    <table className="w-full border mt-6 text-left">
+    <table className="table-auto w-full border-collapse border border-gray-300">
       <thead>
         <tr>
-          <th className="border px-4 py-2">Date</th>
-          <th className="border px-4 py-2">Matchup</th>
-          <th className="border px-4 py-2">Score</th>
-          <th className="border px-4 py-2">Status</th>
-          <th className="border px-4 py-2">RAX</th>
+          <th className="border p-2">Date</th>
+          <th className="border p-2">Matchup</th>
+          <th className="border p-2">Score</th>
+          <th className="border p-2">Result</th>
+          <th className="border p-2">RAX</th>
         </tr>
       </thead>
       <tbody>
-        {schedule.map((game, index) => (
-          <tr key={index}>
-            <td className="border px-4 py-2">{new Date(game.date).toLocaleString()}</td>
-            <td className="border px-4 py-2">{game.name}</td>
-            <td className="border px-4 py-2">
-              {game.score.map((s) => `${s.team}: ${s.score}`).join(" | ")}
-            </td>
-            <td className="border px-4 py-2">{game.status}</td>
-            <td className="border px-4 py-2">{game.rax}</td>
+        {schedule.map((game, idx) => (
+          <tr key={idx}>
+            <td className="border p-2">{game.date}</td>
+            <td className="border p-2">{game.matchup}</td>
+            <td className="border p-2">{game.score}</td>
+            <td className="border p-2">{game.result}</td>
+            <td className="border p-2">{game.rax}</td>
           </tr>
         ))}
       </tbody>

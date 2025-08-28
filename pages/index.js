@@ -1,46 +1,66 @@
-import { useState, useEffect } from "react";
-import SportSelector from "../components/SportSelector";
-import SeasonSelector from "../components/SeasonSelector";
-import TeamSelector from "../components/TeamSelector";
-import ScheduleTable from "../components/ScheduleTable";
+import { useEffect, useState } from 'react';
+import SeasonSelector from '../components/SeasonSelector';
+import TeamSelector from '../components/TeamSelector';
+import ScheduleTable from '../components/ScheduleTable';
 
 export default function Home() {
-  const [sport, setSport] = useState("");
-  const [season, setSeason] = useState("");
-  const [team, setTeam] = useState("");
+  const [sport, setSport] = useState('');
+  const [season, setSeason] = useState('');
   const [teams, setTeams] = useState([]);
+  const [selectedTeam, setSelectedTeam] = useState('');
   const [schedule, setSchedule] = useState([]);
 
+  const sports = [
+    { value: 'basketball/nba', label: 'NBA' },
+    { value: 'football/nfl', label: 'NFL' },
+    { value: 'hockey/nhl', label: 'NHL' }
+  ];
+
+  // Fetch teams when sport changes
   useEffect(() => {
     if (sport) {
-      const fetchTeams = async () => {
-        const res = await fetch(`/api/schedule?sport=${sport}`);
-        const data = await res.json();
-        setTeams(data.teams || []);
-      };
-      fetchTeams();
+      fetch(`/api/teams?sport=${sport}`)
+        .then((res) => res.json())
+        .then((data) => setTeams(data))
+        .catch((err) => console.error(err));
+    } else {
+      setTeams([]);
+      setSelectedTeam('');
     }
   }, [sport]);
 
+  // Fetch schedule when all three filters are selected
   useEffect(() => {
-    if (sport && season && team) {
-      const fetchSchedule = async () => {
-        const res = await fetch(`/api/schedule?sport=${sport}&season=${season}&team=${team}`);
-        const data = await res.json();
-        setSchedule(data.schedule || []);
-      };
-      fetchSchedule();
+    if (sport && season && selectedTeam) {
+      fetch(`/api/schedule?sport=${sport}&season=${season}&teamId=${selectedTeam}`)
+        .then((res) => res.json())
+        .then((data) => setSchedule(data))
+        .catch((err) => console.error(err));
+    } else {
+      setSchedule([]);
     }
-  }, [sport, season, team]);
+  }, [sport, season, selectedTeam]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">Game Schedule & RAX</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <SportSelector sport={sport} setSport={setSport} />
-        <SeasonSelector season={season} setSeason={setSeason} />
-        <TeamSelector teams={teams} team={team} setTeam={setTeam} />
-      </div>
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Sports Schedule with RAX</h1>
+
+      <select
+        className="border p-2 rounded w-full mb-4"
+        value={sport}
+        onChange={(e) => setSport(e.target.value)}
+      >
+        <option value="">Select Sport</option>
+        {sports.map((s) => (
+          <option key={s.value} value={s.value}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+
+      <SeasonSelector selectedSeason={season} onChange={setSeason} />
+      <TeamSelector teams={teams} selectedTeam={selectedTeam} onChange={setSelectedTeam} />
+
       <ScheduleTable schedule={schedule} />
     </div>
   );
