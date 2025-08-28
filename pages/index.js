@@ -5,96 +5,72 @@ import SeasonSelector from "../components/SeasonSelector";
 
 export default function Home() {
   const [sport, setSport] = useState("");
-  const [league, setLeague] = useState("");
   const [teams, setTeams] = useState([]);
   const [team, setTeam] = useState("");
   const [season, setSeason] = useState(new Date().getFullYear());
   const [rarity, setRarity] = useState("General");
   const [schedule, setSchedule] = useState([]);
+  const [totalRax, setTotalRax] = useState(0);
 
-  // Fetch teams when sport changes
   useEffect(() => {
     if (!sport) return;
-
-    setTeam("");
-    setTeams([]);
-
-    const [sp, lg] = sport.split("/");
-    setLeague(lg);
-
-    fetch(`http://site.api.espn.com/apis/site/v2/sports/${sp}/${lg}/teams`)
-      .then((res) => res.json())
-      .then((data) => {
-        const teamList = data.sports[0].leagues[0].teams.map((t) => ({
-          name: t.team.displayName,
-          abbreviation: t.team.abbreviation,
-        }));
-        setTeams(teamList);
-      });
+    fetch(`/api/teams?sport=${sport}`)
+      .then(r => r.json())
+      .then(data => setTeams(data.teams));
   }, [sport]);
 
-  // Fetch schedule when team, season, and rarity are selected
-  useEffect(() => {
-    if (!team || !season || !sport) return;
-
-    const [sp, lg] = sport.split("/");
-
-    fetch(
-      `/api/schedule?sport=${sp}&league=${lg}&team=${team}&season=${season}&rarity=${rarity}`
-    )
-      .then((res) => res.json())
-      .then((data) => setSchedule(data));
-  }, [team, season, sport, rarity]);
+  const fetchSchedule = async () => {
+    if (!sport || !team) return;
+    const res = await fetch(`/api/schedule?sport=${sport}&team=${team}&season=${season}&rarity=${rarity}`);
+    const data = await res.json();
+    setSchedule(data.schedule);
+    setTotalRax(data.totalRax);
+  };
 
   return (
     <div style={{ padding: "2rem" }}>
       <h1>Team Schedule & Rax Viewer</h1>
-      <SportSelector selectedSport={sport} onChangeSport={setSport} />
-      {teams.length > 0 && (
-        <TeamSelector teams={teams} selectedTeam={team} onChangeTeam={setTeam} />
-      )}
-      {team && <SeasonSelector season={season} onChangeSeason={setSeason} />}
-      {team && (
-        <div style={{ marginTop: "1rem" }}>
-          <label>Rarity: </label>
-          <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
-            <option value="General">General</option>
-            <option value="Common">Common</option>
-            <option value="Uncommon">Uncommon</option>
-            <option value="Rare">Rare</option>
-            <option value="Epic">Epic</option>
-            <option value="Leg">Leg</option>
-            <option value="Mystic">Mystic</option>
-            <option value="Iconic">Iconic</option>
-          </select>
-        </div>
-      )}
-      {schedule.length > 0 && (
-        <table border="1" cellPadding="5" style={{ marginTop: "2rem" }}>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Matchup</th>
-              <th>Score</th>
-              <th>Type</th>
-              <th>Winner</th>
-              <th>Rax Earned</th>
+      <SportSelector sport={sport} setSport={setSport} />
+      {sport && <TeamSelector teams={teams} selectedTeam={team} onChangeTeam={setTeam} />}
+      <SeasonSelector season={season} setSeason={setSeason} />
+      <div>
+        <label>Rarity: </label>
+        <select value={rarity} onChange={(e) => setRarity(e.target.value)}>
+          <option>General</option>
+          <option>Common</option>
+          <option>Uncommon</option>
+          <option>Rare</option>
+          <option>Epic</option>
+          <option>Leg</option>
+          <option>Mystic</option>
+          <option>Iconic</option>
+        </select>
+      </div>
+      <button onClick={fetchSchedule} style={{ marginTop: "1rem" }}>Load Schedule</button>
+
+      <h2>Total Rax Earned: {totalRax}</h2>
+      <table border="1" cellPadding="5" style={{ marginTop: "1rem" }}>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Matchup</th>
+            <th>Score</th>
+            <th>Type</th>
+            <th>Rax</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((g, idx) => (
+            <tr key={idx}>
+              <td>{g.date}</td>
+              <td>{g.matchup}</td>
+              <td>{g.score}</td>
+              <td>{g.type}</td>
+              <td>{g.rax}</td>
             </tr>
-          </thead>
-          <tbody>
-            {schedule.map((s, idx) => (
-              <tr key={idx}>
-                <td>{new Date(s.date).toLocaleString()}</td>
-                <td>{s.matchup}</td>
-                <td>{s.score}</td>
-                <td>{s.type}</td>
-                <td>{s.winner}</td>
-                <td>{s.rax_earned.toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
