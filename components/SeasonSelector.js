@@ -1,13 +1,13 @@
-export default function SeasonSelector({ season, setSeason }) {
+export default function SeasonSelector({ selectedSeason, onChangeSeason }) {
   return (
-    <div>
+    <div style={{ margin: "1rem 0" }}>
       <label>Season: </label>
       <input
         type="number"
+        value={selectedSeason}
+        onChange={(e) => onChangeSeason(e.target.value)}
         min="2000"
         max="2100"
-        value={season}
-        onChange={(e) => setSeason(Number(e.target.value))}
       />
     </div>
   );
