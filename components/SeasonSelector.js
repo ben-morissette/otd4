@@ -1,12 +1,15 @@
-export default function SeasonSelector({ seasons, onSelect }) {
+export default function SeasonSelector({ seasons, selectedSeason, onChange }) {
   return (
     <select
-      className="border p-2 w-full"
-      onChange={(e) => onSelect(e.target.value)}
+      className="border p-2 rounded"
+      value={selectedSeason}
+      onChange={(e) => onChange(e.target.value)}
     >
       <option value="">Select Season</option>
-      {seasons.map((s, idx) => (
-        <option key={idx} value={s.value}>{s.label}</option>
+      {seasons.map((season) => (
+        <option key={season} value={season}>
+          {season}-{parseInt(season) + 1}
+        </option>
       ))}
     </select>
   );

@@ -1,12 +1,15 @@
-export default function SportSelector({ sports, onSelect }) {
+export default function SportSelector({ sports, selectedSport, onChange }) {
   return (
     <select
-      className="border p-2 w-full"
-      onChange={(e) => onSelect(e.target.value)}
+      className="border p-2 rounded"
+      value={selectedSport}
+      onChange={(e) => onChange(e.target.value)}
     >
       <option value="">Select Sport</option>
-      {sports.map((sport, idx) => (
-        <option key={idx} value={sport.id}>{sport.name}</option>
+      {sports.map((sport) => (
+        <option key={sport.id} value={sport.id}>
+          {sport.name}
+        </option>
       ))}
     </select>
   );
