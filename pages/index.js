@@ -1,119 +1,117 @@
 import { useState, useEffect } from "react";
 
+const SPORTS = ["NFL", "NBA", "NHL"];
+const RARITIES = ["General","Common","Uncommon","Rare","Epic","Leg","Mystic","Iconic"];
+
 export default function Home() {
   const [sport, setSport] = useState("");
-  const [season, setSeason] = useState("");
+  const [teams, setTeams] = useState({});
   const [team, setTeam] = useState("");
-  const [teamsList, setTeamsList] = useState([]);
+  const [season, setSeason] = useState(new Date().getFullYear());
+  const [rarity, setRarity] = useState("General");
   const [schedule, setSchedule] = useState([]);
   const [totalRax, setTotalRax] = useState(0);
 
-  // Load teams when sport changes
+  // Fetch teams whenever sport changes
   useEffect(() => {
     if (!sport) return;
-    setTeam(""); // reset team when sport changes
-    setSchedule([]);
-    setTotalRax(0);
 
     const fetchTeams = async () => {
-      try {
-        const res = await fetch(`/api/teams?sport=${sport}`);
-        const data = await res.json();
-        setTeamsList(data.teams || []);
-      } catch (err) {
-        console.error(err);
-        setTeamsList([]);
-      }
+      let url = "";
+      if (sport === "NFL") url = "http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams";
+      if (sport === "NBA") url = "http://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams";
+      if (sport === "NHL") url = "http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams";
+
+      const res = await fetch(url);
+      const data = await res.json();
+      const teamMap = {};
+      data.sports[0].leagues[0].teams.forEach(t => {
+        teamMap[t.team.abbreviation] = t.team.displayName;
+      });
+      setTeams(teamMap);
+      setTeam(""); // reset selected team
     };
 
     fetchTeams();
   }, [sport]);
 
-  // Load schedule when sport, team, and season are all selected
-  useEffect(() => {
+  // Fetch schedule when team + season + rarity selected
+  const fetchSchedule = async () => {
     if (!sport || !team || !season) return;
 
-    const fetchSchedule = async () => {
-      try {
-        const res = await fetch(
-          `/api/schedule?sport=${sport}&team=${team}&season=${season}`
-        );
-        const data = await res.json();
-        setSchedule(data.schedule || []);
-        setTotalRax(data.total_rax || 0);
-      } catch (err) {
-        console.error(err);
-        setSchedule([]);
-        setTotalRax(0);
-      }
-    };
-
-    fetchSchedule();
-  }, [sport, team, season]);
+    const apiMap = { NFL: "nfl_schedule", NBA: "nba_schedule", NHL: "nhl_schedule" };
+    const res = await fetch(`/api/${apiMap[sport]}?team=${team}&season=${season}&rarity=${rarity}`);
+    const data = await res.json();
+    setSchedule(data.schedule || []);
+    setTotalRax(data.totalRax || 0);
+  };
 
   return (
-    <div>
-      {/* Sport Selection */}
-      <select value={sport} onChange={(e) => setSport(e.target.value)}>
+    <div style={{ padding: 20 }}>
+      <h1>Team Schedule & Rax Viewer</h1>
+
+      <label>Sport:</label>
+      <select value={sport} onChange={e => setSport(e.target.value)}>
         <option value="">Select Sport</option>
-        <option value="NFL">NFL</option>
-        <option value="NHL">NHL</option>
-        <option value="NBA">NBA</option>
+        {SPORTS.map(s => <option key={s} value={s}>{s}</option>)}
       </select>
 
-      {/* Season Selection */}
+      <br /><br />
+
       {sport && (
-        <input
-          type="number"
-          value={season}
-          min={2000}
-          max={2100}
-          placeholder="Season (e.g. 2024)"
-          onChange={(e) => setSeason(e.target.value)}
-        />
-      )}
-
-      {/* Team Selection */}
-      {sport && teamsList.length > 0 && (
-        <select value={team} onChange={(e) => setTeam(e.target.value)}>
-          <option value="">Select Team</option>
-          {teamsList.map((t) => (
-            <option key={t.abbr} value={t.abbr}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      )}
-
-      {/* Total Rax */}
-      <div>Total Rax: {totalRax}</div>
-
-      {/* Schedule Table */}
-      {schedule.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Match</th>
-              <th>Score</th>
-              <th>Type</th>
-              <th>W/L</th>
-              <th>Rax Earned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedule.map((row, idx) => (
-              <tr key={idx}>
-                <td>{row.date}</td>
-                <td>{row.name}</td>
-                <td>{row.Score}</td>
-                <td>{row.type}</td>
-                <td>{row["W/L"]}</td>
-                <td>{row.rax_earned}</td>
-              </tr>
+        <>
+          <label>Team:</label>
+          <select value={team} onChange={e => setTeam(e.target.value)}>
+            <option value="">Select Team</option>
+            {Object.keys(teams).map(abbr => (
+              <option key={abbr} value={abbr}>{teams[abbr]}</option>
             ))}
-          </tbody>
-        </table>
+          </select>
+
+          <br /><br />
+
+          <label>Season:</label>
+          <input type="number" value={season} onChange={e => setSeason(e.target.value)} />
+
+          <br /><br />
+
+          <label>Rarity:</label>
+          <select value={rarity} onChange={e => setRarity(e.target.value)}>
+            {RARITIES.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+
+          <br /><br />
+
+          <button onClick={fetchSchedule}>Fetch Schedule & Calculate Rax</button>
+        </>
+      )}
+
+      {schedule.length > 0 && (
+        <div style={{ marginTop: 30 }}>
+          <h2>Total Rax Earned: {totalRax.toFixed(2)}</h2>
+          <table border="1" cellPadding="5">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Matchup</th>
+                <th>Score</th>
+                <th>W/L</th>
+                <th>Rax Earned</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((g, i) => (
+                <tr key={i}>
+                  <td>{new Date(g.date).toLocaleString()}</td>
+                  <td>{g.matchup}</td>
+                  <td>{g.score}</td>
+                  <td>{g.W_L}</td>
+                  <td>{g.raxEarned.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
