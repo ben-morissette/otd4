@@ -1,18 +1,19 @@
-import React from "react";
-
-export default function SportSelector({ sport, setSport }) {
+// components/SportSelector.js
+export default function SportSelector({ selectedSport, onChangeSport }) {
+  const sports = ["NHL", "NFL", "NBA"];
   return (
-    <div>
-      <label htmlFor="sport">Select Sport:</label>
+    <div style={{ margin: "1rem 0" }}>
+      <label>Select Sport: </label>
       <select
-        id="sport"
-        value={sport}
-        onChange={(e) => setSport(e.target.value)}
+        value={selectedSport}
+        onChange={(e) => onChangeSport(e.target.value)}
       >
         <option value="">--Choose Sport--</option>
-        <option value="NFL">NFL</option>
-        <option value="NBA">NBA</option>
-        <option value="NHL">NHL</option>
+        {sports.map((sport) => (
+          <option key={sport} value={sport}>
+            {sport}
+          </option>
+        ))}
       </select>
     </div>
   );
