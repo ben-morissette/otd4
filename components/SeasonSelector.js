@@ -1,21 +1,12 @@
-export default function SeasonSelector({ selectedSeason, onChange }) {
-  const currentYear = new Date().getFullYear();
-  const seasons = [];
-  for (let year = currentYear; year >= 2020; year--) {
-    seasons.push(year);
-  }
-
+export default function SeasonSelector({ seasons, onSelect }) {
   return (
     <select
-      className="border p-2 rounded w-full mb-4"
-      value={selectedSeason}
-      onChange={(e) => onChange(e.target.value)}
+      className="border p-2 w-full"
+      onChange={(e) => onSelect(e.target.value)}
     >
       <option value="">Select Season</option>
-      {seasons.map((year) => (
-        <option key={year} value={year}>
-          {year} - {year + 1}
-        </option>
+      {seasons.map((s, idx) => (
+        <option key={idx} value={s.value}>{s.label}</option>
       ))}
     </select>
   );
