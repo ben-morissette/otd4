@@ -1,6 +1,5 @@
-import fetch from 'node-fetch';
+import fetch from "node-fetch";
 
-// Rax multipliers
 const RARITY_MULTIPLIERS = {
   General: 1,
   Common: 1.2,
@@ -9,92 +8,95 @@ const RARITY_MULTIPLIERS = {
   Epic: 2,
   Leg: 2.5,
   Mystic: 4,
-  Iconic: 6
-};
-
-const SPORT_LEAGUES = {
-  NHL: "hockey/nhl",
-  NFL: "football/nfl",
-  NBA: "basketball/nba",
+  Iconic: 6,
 };
 
 export default async function handler(req, res) {
   const { sport, team, season, rarity = "General" } = req.query;
 
-  if (!SPORT_LEAGUES[sport] || !team || !season) {
-    return res.status(400).json({ error: "Missing parameters" });
+  if (!sport || !team || !season) {
+    return res.status(400).json({ error: "Missing required parameters" });
+  }
+
+  let baseUrl;
+  switch (sport) {
+    case "NFL":
+      baseUrl = `http://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/${team}/schedule`;
+      break;
+    case "NHL":
+      baseUrl = `http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/${team}/schedule`;
+      break;
+    case "NBA":
+      baseUrl = `http://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${team}/schedule`;
+      break;
+    default:
+      return res.status(400).json({ error: "Invalid sport" });
   }
 
   const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
-  const url = `http://site.api.espn.com/apis/site/v2/sports/${SPORT_LEAGUES[sport]}/teams/${team}/schedule?season=${season}&seasontype=2`;
-  const playoffUrl = `http://site.api.espn.com/apis/site/v2/sports/${SPORT_LEAGUES[sport]}/teams/${team}/schedule?season=${season}&seasontype=3`;
 
   try {
-    const [resp, playoffResp] = await Promise.all([fetch(url), fetch(playoffUrl)]);
-    const data = await resp.json();
-    const playoffData = await playoffResp.json();
+    const regularRes = await fetch(`${baseUrl}?season=${season}&seasontype=2`);
+    const regularData = await regularRes.json();
 
-    const schedule = [];
-    const teamName = data.team?.displayName || "";
+    const playoffRes = await fetch(`${baseUrl}?season=${season}&seasontype=3`);
+    const playoffData = await playoffRes.json();
 
-    function calcRax(home, away, type = "Regular") {
-      const homeScore = parseInt(home?.score || 0);
-      const awayScore = parseInt(away?.score || 0);
+    const events = [
+      ...(regularData.events || []),
+      ...(playoffData.events || []).map((e) => ({ ...e, playoff: true })),
+    ];
+
+    const schedule = events.map((event) => {
+      const competitors = event.competitions?.[0]?.competitors || [];
+      const home = competitors.find((c) => c.homeAway === "home") || {};
+      const away = competitors.find((c) => c.homeAway === "away") || {};
+
+      const homeScore = Number(home.score || 0);
+      const awayScore = Number(away.score || 0);
+      const winner =
+        homeScore > awayScore
+          ? home.team.displayName
+          : awayScore > homeScore
+          ? away.team.displayName
+          : "Tie";
+      const loser =
+        winner === "Tie"
+          ? "Tie"
+          : winner === home.team.displayName
+          ? away.team.displayName
+          : home.team.displayName;
+      const margin = Math.abs(homeScore - awayScore);
+
+      // Calculate Rax based on sport and playoff
       let rax = 0;
-
-      if (sport === "NHL") {
-        if (homeScore !== awayScore) {
-          const winner = homeScore > awayScore ? "home" : "away";
-          if ((winner === "home" && home.team.abbreviation === team) || (winner === "away" && away.team.abbreviation === team)) {
-            rax = type === "Playoffs" ? 20 + 20 * Math.abs(homeScore - awayScore) : 12 * Math.abs(homeScore - awayScore);
-          }
-        }
-      } else if (sport === "NFL") {
-        const teamScore = (home.team.abbreviation === team ? homeScore : awayScore);
-        if (homeScore !== awayScore) {
-          const winner = homeScore > awayScore ? home : away;
-          rax = (winner.team.abbreviation === team ? 100 + 2 * Math.abs(homeScore - awayScore) : teamScore);
-        } else {
-          rax = teamScore;
-        }
+      if (sport === "NFL") {
+        if (winner === home.team.displayName && winner === team) rax = 100 + margin * 2;
+        else if (winner === away.team.displayName && winner === team) rax = 100 + margin * 2;
+        else rax = homeScore + awayScore <= 5 ? 5 : homeScore; // simplified close game bonus
+      } else if (sport === "NHL") {
+        if (winner === team) rax = event.playoff ? 20 + 20 * margin : 12 * margin;
       } else if (sport === "NBA") {
-        const margin = Math.abs(homeScore - awayScore);
-        const winner = homeScore > awayScore ? home : away;
-        rax = winner.team.abbreviation === team ? (type === "Playoffs" ? 30 + margin : 2.5 * margin) : 0;
+        if (winner === team) rax = event.playoff ? 30 + margin : 2.5 * margin;
       }
-      return rax * rarityMultiplier;
-    }
 
-    data.events?.forEach(event => {
-      const comp = event.competitions?.[0]?.competitors || [];
-      const home = comp.find(c => c.homeAway === "home") || {};
-      const away = comp.find(c => c.homeAway === "away") || {};
-      schedule.push({
+      rax *= rarityMultiplier;
+
+      return {
         date: event.date,
-        name: event.name,
-        type: "Regular",
-        score: `${away.score || 0} - ${home.score || 0}`,
-        rax: calcRax(home, away)
-      });
+        name: `${away.team.displayName} at ${home.team.displayName}`,
+        Score: `${awayScore} - ${homeScore}`,
+        type: event.playoff ? "Playoffs" : "Regular Season",
+        "W/L": winner === team ? "W" : winner === "Tie" ? "Tie" : "L",
+        rax_earned: rax.toFixed(2),
+      };
     });
 
-    playoffData.events?.forEach(event => {
-      const comp = event.competitions?.[0]?.competitors || [];
-      const home = comp.find(c => c.homeAway === "home") || {};
-      const away = comp.find(c => c.homeAway === "away") || {};
-      schedule.push({
-        date: event.date,
-        name: event.name,
-        type: "Playoffs",
-        score: `${away.score || 0} - ${home.score || 0}`,
-        rax: calcRax(home, away, "Playoffs")
-      });
-    });
+    const total_rax = schedule.reduce((sum, s) => sum + parseFloat(s.rax_earned), 0);
 
-    const totalRax = schedule.reduce((sum, g) => sum + g.rax, 0);
-
-    res.status(200).json({ schedule, totalRax });
+    res.status(200).json({ schedule, total_rax });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Failed to fetch schedule" });
   }
 }
