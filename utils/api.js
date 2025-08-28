@@ -4,6 +4,17 @@ const SPORT_ENDPOINTS = {
   NBA: "basketball/nba",
 };
 
+const RARITY_MULTIPLIERS = {
+  General: 1,
+  Common: 1.2,
+  Uncommon: 1.4,
+  Rare: 1.6,
+  Epic: 2,
+  Leg: 2.5,
+  Mystic: 4,
+  Iconic: 6,
+};
+
 export async function getTeams(sport) {
   if (!sport) return [];
   const url = `https://site.api.espn.com/apis/site/v2/sports/${SPORT_ENDPOINTS[sport]}/teams`;
@@ -18,7 +29,8 @@ export async function getTeams(sport) {
   return teams;
 }
 
-export async function getScheduleWithRax(sport, teamAbbr, season) {
+export async function getScheduleWithRax(sport, teamAbbr, season, rarity = "General") {
+  const rarityMultiplier = RARITY_MULTIPLIERS[rarity] || 1;
   const regUrl = `https://site.api.espn.com/apis/site/v2/sports/${SPORT_ENDPOINTS[sport]}/teams/${teamAbbr}/schedule?season=${season}&seasontype=2`;
   const playoffUrl = `https://site.api.espn.com/apis/site/v2/sports/${SPORT_ENDPOINTS[sport]}/teams/${teamAbbr}/schedule?season=${season}&seasontype=3`;
 
@@ -57,14 +69,40 @@ export async function getScheduleWithRax(sport, teamAbbr, season) {
 
     const margin = Math.abs(homeScore - awayScore);
 
-    // Rax rules simplified (NHL example)
+    // --- RAX Calculation ---
     let rax = 0;
+
     if (sport === "NHL") {
       if (winner === home.team.displayName && teamAbbr === home.team.abbreviation) rax = 12 * margin;
       else if (winner === away.team.displayName && teamAbbr === away.team.abbreviation) rax = 12 * margin;
-    }
-    // You can extend NFL/NBA Rax rules here
 
+      // Playoff bonus
+      if (event.seasonType === 3 && winner === home.team.displayName && teamAbbr === home.team.abbreviation)
+        rax = 20 + 20 * margin;
+      else if (event.seasonType === 3 && winner === away.team.displayName && teamAbbr === away.team.abbreviation)
+        rax = 20 + 20 * margin;
+    }
+
+    if (sport === "NFL") {
+      const teamScore =
+        teamAbbr === home.team.abbreviation ? homeScore : awayScore;
+
+      if (winner === home.team.displayName && teamAbbr === home.team.abbreviation)
+        rax = 100 + 2 * margin;
+      else if (winner === away.team.displayName && teamAbbr === away.team.abbreviation)
+        rax = 100 + 2 * margin;
+      else rax = teamScore + 5; // loss + close game bonus
+    }
+
+    if (sport === "NBA") {
+      if (winner === home.team.displayName && teamAbbr === home.team.abbreviation) {
+        rax = event.seasonType === 3 ? 30 + margin : 2.5 * margin;
+      } else if (winner === away.team.displayName && teamAbbr === away.team.abbreviation) {
+        rax = event.seasonType === 3 ? 30 + margin : 2.5 * margin;
+      } else rax = 0; // Loss
+    }
+
+    rax *= rarityMultiplier;
     totalRax += rax;
 
     return {
@@ -74,9 +112,9 @@ export async function getScheduleWithRax(sport, teamAbbr, season) {
       awayScore,
       winner,
       margin,
-      rax,
+      rax: rax.toFixed(2),
     };
   });
 
-  return { schedule, totalRax };
+  return { schedule, totalRax: totalRax.toFixed(2) };
 }
