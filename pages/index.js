@@ -1,161 +1,104 @@
 import { useState, useEffect } from "react";
 
 export default function Home() {
-  const [sport, setSport] = useState("");
-  const [season, setSeason] = useState("");
-  const [team, setTeam] = useState("");
+  const [sports] = useState([
+    "NFL", "NBA", "NHL", "MLB", "WNBA", "CBB", "CFB"
+  ]);
+  const [selectedSport, setSelectedSport] = useState("");
   const [teams, setTeams] = useState([]);
-  const [games, setGames] = useState([]);
-  const [rax, setRax] = useState(0);
+  const [selectedTeam, setSelectedTeam] = useState("");
+  const [season, setSeason] = useState("");
+  const [schedule, setSchedule] = useState([]);
+  const [totalRax, setTotalRax] = useState(0);
 
-  const sportsOptions = [
-    { label: "NFL", value: "football/nfl" },
-    { label: "NBA", value: "basketball/nba" },
-    { label: "MLB", value: "baseball/mlb" },
-    { label: "NHL", value: "hockey/nhl" },
-    { label: "CFB", value: "football/college-football" },
-    { label: "CBB", value: "basketball/college-basketball" },
-    { label: "WNBA", value: "basketball/wnba" },
-  ];
-
-  const seasonsOptions = ["2023", "2024", "2025"]; // Can be dynamic later
-
-  // Fetch teams when sport changes
+  // Fetch teams whenever sport changes
   useEffect(() => {
-    if (!sport) return;
-    setTeam("");
+    if (!selectedSport) return;
     setTeams([]);
-    fetch(`/api/teams?sport=${sport}`)
-      .then((res) => res.json())
-      .then((data) => setTeams(data))
-      .catch((err) => console.error(err));
-  }, [sport]);
+    setSelectedTeam("");
+    fetch(`/api/teams?sport=${selectedSport}`)
+      .then(res => res.json())
+      .then(data => setTeams(data))
+      .catch(err => console.error(err));
+  }, [selectedSport]);
 
-  // Fetch games when sport, season, and team selected
+  // Fetch schedule whenever team or season changes
   useEffect(() => {
-    if (!sport || !season || !team) return;
-    fetch(`/api/schedule?sport=${sport}&season=${season}&team=${team}`)
-      .then((res) => res.json())
-      .then((data) => setGames(data))
-      .catch((err) => console.error(err));
-  }, [sport, season, team]);
-
-  // Calculate RAX whenever games change
-  useEffect(() => {
-    if (!games.length) return;
-
-    let total = 0;
-    games.forEach((g) => {
-      const { homeScore, awayScore, winner, isPlayoff } = g;
-      const teamScore = g.teamId === g.homeId ? homeScore : awayScore;
-      const oppScore = g.teamId === g.homeId ? awayScore : homeScore;
-      const diff = teamScore - oppScore;
-
-      switch (sport) {
-        case "baseball/mlb":
-          if (winner === team) {
-            total += isPlayoff ? 20 + 8 * diff : teamScore + 5 * diff;
-          } else {
-            total += isPlayoff ? 0 : teamScore;
-          }
-          break;
-        case "basketball/nba":
-        case "basketball/wnba":
-        case "basketball/college-basketball":
-          if (winner === team) {
-            total += isPlayoff ? 30 + diff : 2.5 * diff;
-          }
-          break;
-        case "hockey/nhl":
-          if (winner === team) {
-            total += isPlayoff ? 20 + 20 * diff : 12 * diff;
-          }
-          break;
-        case "football/nfl":
-        case "football/college-football":
-          if (winner === team) {
-            total += sport.includes("college") ? 100 + diff : 100 + diff * 2;
-          } else {
-            total += sport.includes("college") ? Math.min(50, teamScore) : teamScore;
-          }
-          break;
-        default:
-          break;
-      }
-    });
-
-    setRax(Math.max(0, total));
-  }, [games, sport, team]);
+    if (!selectedTeam || !season) return;
+    fetch(`/api/schedule?sport=${selectedSport}&teamId=${selectedTeam}&season=${season}`)
+      .then(res => res.json())
+      .then(data => {
+        setSchedule(data.schedule || []);
+        setTotalRax(data.totalRax || 0);
+      })
+      .catch(err => console.error(err));
+  }, [selectedTeam, season, selectedSport]);
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Team RAX Calculator</h1>
+    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <h1>Team Schedule & Rax Calculator</h1>
 
-      <div>
-        <label>Sport:</label>
-        <select value={sport} onChange={(e) => setSport(e.target.value)}>
-          <option value="">Select Sport</option>
-          {sportsOptions.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
+      <div style={{ margin: "1rem 0" }}>
+        <label>Sport: </label>
+        <select value={selectedSport} onChange={e => setSelectedSport(e.target.value)}>
+          <option value="">--Select Sport--</option>
+          {sports.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
-      <div>
-        <label>Season:</label>
-        <select value={season} onChange={(e) => setSeason(e.target.value)}>
-          <option value="">Select Season</option>
-          {seasonsOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}-{parseInt(s) + 1}
-            </option>
-          ))}
-        </select>
-      </div>
+      {selectedSport && (
+        <div style={{ margin: "1rem 0" }}>
+          <label>Season (Year, e.g., 2024): </label>
+          <input
+            type="number"
+            value={season}
+            onChange={e => setSeason(e.target.value)}
+            min="2000"
+            max="2030"
+          />
+        </div>
+      )}
 
-      <div>
-        <label>Team:</label>
-        <select value={team} onChange={(e) => setTeam(e.target.value)}>
-          <option value="">Select Team</option>
-          {teams.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <h2>RAX: {rax}</h2>
-      </div>
-
-      <div>
-        <h3>Games</h3>
-        <table border="1">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Opponent</th>
-              <th>Score</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {games.map((g) => (
-              <tr key={g.id}>
-                <td>{g.date}</td>
-                <td>{g.opponent}</td>
-                <td>
-                  {g.homeScore} - {g.awayScore}
-                </td>
-                <td>{g.winner === team ? "W" : "L"}</td>
-              </tr>
+      {teams.length > 0 && (
+        <div style={{ margin: "1rem 0" }}>
+          <label>Team: </label>
+          <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)}>
+            <option value="">--Select Team--</option>
+            {teams.map(team => (
+              <option key={team.id} value={team.id}>{team.name}</option>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </select>
+        </div>
+      )}
+
+      {schedule.length > 0 && (
+        <div style={{ marginTop: "2rem" }}>
+          <h2>Schedule for {teams.find(t => t.id === selectedTeam)?.name}</h2>
+          <table border="1" cellPadding="5" style={{ borderCollapse: "collapse", width: "100%" }}>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Matchup</th>
+                <th>Score</th>
+                <th>Type</th>
+                <th>Rax</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((game, idx) => (
+                <tr key={idx}>
+                  <td>{new Date(game.date).toLocaleString()}</td>
+                  <td>{game.awayTeam} @ {game.homeTeam}</td>
+                  <td>{game.awayScore} - {game.homeScore}</td>
+                  <td>{game.type}</td>
+                  <td>{game.rax}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h3>Total Rax: {totalRax}</h3>
+        </div>
+      )}
     </div>
   );
 }
