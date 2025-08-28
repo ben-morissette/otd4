@@ -1,9 +1,9 @@
 export default function TeamSelector({ teams, selectedTeam, onChangeTeam }) {
   return (
-    <div style={{ margin: "1rem 0" }}>
-      <label>Select Team: </label>
+    <div style={{ marginBottom: "1rem" }}>
+      <label>Team: </label>
       <select value={selectedTeam} onChange={(e) => onChangeTeam(e.target.value)}>
-        <option value="">--Choose Team--</option>
+        <option value="">--Select Team--</option>
         {teams.map((t) => (
           <option key={t.abbreviation} value={t.abbreviation}>
             {t.name}
