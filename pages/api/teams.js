@@ -2,8 +2,7 @@ import fetch from "node-fetch";
 
 export default async function handler(req, res) {
   const { sport } = req.query;
-
-  if (!sport) return res.status(400).json({ error: "Sport is required" });
+  if (!sport) return res.status(400).json({ error: "Sport required" });
 
   let leaguePath;
   switch (sport.toUpperCase()) {
@@ -18,13 +17,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(`http://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams`);
+    const url = `http://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams`;
+    const response = await fetch(url);
     const data = await response.json();
 
-    const teams = data.sports[0].leagues[0].teams.map(team => ({
-      id: team.team.id,
-      name: team.team.displayName
-    }));
+    const teams = [];
+    data.sports[0].leagues[0].teams.forEach(t => {
+      teams.push({
+        id: t.team.id,
+        name: t.team.displayName
+      });
+    });
 
     res.status(200).json(teams);
   } catch (err) {

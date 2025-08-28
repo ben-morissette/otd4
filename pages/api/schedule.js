@@ -1,6 +1,10 @@
+import fetch from "node-fetch";
+
 export default async function handler(req, res) {
   const { sport, teamId, season } = req.query;
-  if (!sport || !teamId || !season) return res.status(400).json({ error: "Sport, teamId and season required" });
+
+  if (!sport || !teamId || !season)
+    return res.status(400).json({ error: "Missing query params" });
 
   let leaguePath;
   switch (sport.toUpperCase()) {
@@ -15,34 +19,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    // ESPN API doesn't use season span, just single year
     const url = `http://site.api.espn.com/apis/site/v2/sports/${leaguePath}/teams/${teamId}/schedule?season=${season}`;
     const response = await fetch(url);
     const data = await response.json();
-
-    const schedule = data.events.map(event => {
-      const homeTeam = {
-        id: event.competitions[0].competitors[0].team.id,
-        name: event.competitions[0].competitors[0].team.displayName,
-        score: parseInt(event.competitions[0].competitors[0].score, 10) || 0
-      };
-      const awayTeam = {
-        id: event.competitions[0].competitors[1].team.id,
-        name: event.competitions[0].competitors[1].team.displayName,
-        score: parseInt(event.competitions[0].competitors[1].score, 10) || 0
-      };
-
-      return {
-        id: event.id,
-        date: event.date,
-        status: event.status.type.description,
-        homeTeam,
-        awayTeam,
-        rax: calculateRax(sport, { homeTeam, awayTeam, competitions: event.competitions }, teamId)
-      };
-    });
-
-    res.status(200).json(schedule);
+    res.status(200).json(data.events || []);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch schedule" });
